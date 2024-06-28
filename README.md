@@ -1,5 +1,5 @@
-# Python-project-template
-A template repository for new python projects
+# Grid topology generator
+A tool to generate typical dutch grid topologies
 
 ## Installation
 

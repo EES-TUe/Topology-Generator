@@ -3,12 +3,18 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "example_package_YOUR_PACKAGE_NAME_HERE"
+name = "Topology_Generator"
 version = "0.0.1"
 authors = [
-  { name="Example Author", email="author@example.com" },
+  { name="Leo van Schooten", email="l.g.t.v.schooten@tue.nl" },
 ]
-description = "A small example package"
+dependencies = [
+    'matplotlib==3.9.0',
+    'shapely==2.0.4',
+    'geopandas==1.0.0',
+    'networkx==3.3'
+]
+description = "A package to generate dutch electricity grid topologies"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
