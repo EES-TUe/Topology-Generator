@@ -1,0 +1,5 @@
+Waar snijden we m af?
+Knoop punt weghalen in de esdls?
+Filteren op kabel type goed genoeg?
+Performance graph edit distance?
+Matchen binnen archetype van de gis
