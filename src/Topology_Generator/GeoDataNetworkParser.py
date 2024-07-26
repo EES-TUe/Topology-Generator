@@ -1,11 +1,16 @@
 from typing import List
+from esdl import Polygon
 from shapely import LineString, MultiLineString, Point
 import geopandas
 import numpy as np
+from shapely.ops import nearest_points
 
+from Topology_Generator.Constants import GeoDataMargins
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from enum import Enum
+
+from Topology_Generator.dataclasses import NavigationLineString
 
 class GeneratorCableCase(Enum):
     THIN = 2
@@ -18,15 +23,31 @@ class BuildingYearCategory(Enum):
     NEW = 3
 
 class GeoDataNetworkParser(NetworkParser):
-    def __init__(self, geo_df_lv_lines : geopandas.GeoDataFrame, lv_mv_station_df : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_mv_lines : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG):
+    def __init__(self, geo_df_lv_lines : geopandas.GeoDataFrame, lv_mv_station_df : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_mv_lines : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_lv_stations = geopandas.GeoDataFrame(), mv_generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG, lv_generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG):
         self.geo_df_lv_lines = geo_df_lv_lines
         self.geo_df_lv_mv_station = lv_mv_station_df
         self.geo_df_bag_data = geo_df_bag_data
         self.geo_df_mv_lines = geo_df_mv_lines
         self.geo_df_hv_stations = geo_df_hv_stations
+        self.geo_df_lv_stations = geo_df_lv_stations
         self.counted_connections_indices = np.array([])
-        self.generator_cable_case : GeneratorCableCase = generator_cable_case
+        self.mv_generator_cable_case : GeneratorCableCase = mv_generator_cable_case
+        self.lv_generator_cable_case : GeneratorCableCase = lv_generator_cable_case
+        self.lv_line_buildings_mapping : dict[LineString, List[Polygon]] = self.init_line_building_mapping(geo_df_lv_lines, geo_df_bag_data)
         super().__init__()
+
+    def init_line_building_mapping(self, geo_df_lv_lines : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame):
+        ret_val = {}
+        if not geo_df_lv_lines.empty and not geo_df_bag_data.empty:
+            for index, building in geo_df_bag_data.iterrows():
+                if building["gebruiksdoel"] is not None and "woonfunctie" in str(building["gebruiksdoel"]).lower():
+                    nearest_index = geo_df_lv_lines.sindex.nearest(building.geometry, max_distance=GeoDataMargins.MAX_DISTANCE_BUILDING_TO_LV_CABLE)
+                    if nearest_index.size > 0:
+                        line_string = geo_df_lv_lines.take(nearest_index[1]).geometry.iloc[0]
+                        if line_string not in ret_val:
+                            ret_val[line_string] = []
+                        ret_val[line_string].append(index)
+        return ret_val
 
     def _add_line(self, lines : List[LineString], new_line : LineString):
         line_with_similar_start_end_coords = any((GeometryHelperFunctions.points_are_close(line.coords[0], new_line.coords[0]) and GeometryHelperFunctions.points_are_close(line.coords[-1], new_line.coords[-1])) or (GeometryHelperFunctions.points_are_close(line.coords[0], new_line.coords[-1]) and GeometryHelperFunctions.points_are_close(line.coords[-1], new_line.coords[0])) for line in lines)
@@ -37,25 +58,40 @@ class GeoDataNetworkParser(NetworkParser):
         # Method should be overriden by derrived classes
         pass
 
+    def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
+        # Method should be overriden by derrived classes
+        pass
+
     def extract_mv_lines_connected_to_hv_mv_station(self) -> List[StationStartingLinesContainer]:
         # Method should be overriden by derrived classes
         pass
 
-    def get_amount_of_connections_bordering_line(self, line_string : LineString) -> int:
-        MAX_DISTANCE_TO_LINE = 20.0
-        ret_val = 0.0
+    def is_line_connected_to_mv_station(self, navigation_line_string : NavigationLineString) -> bool:
+        # Method should be overriden by derrived classes
+        pass
+
+    def _remove_connections_with_intersection_at_transformer(self, new_connections_indices : List[int], line_string : LineString):
+        to_remove = []
+        for index in new_connections_indices:
+            building = self.geo_df_bag_data.take([index]).iloc[0].geometry
+            point_on_building, point_on_line = nearest_points(building, line_string)
+            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN)
+            if nearest_lv_station.size > 0:
+                to_remove.append(index)
+        return np.setdiff1d(new_connections_indices, to_remove)
+
+
+    def get_houses_bordering_line(self, line_string : LineString) -> List[Polygon]:
+        ret_val = []
         if not self.geo_df_bag_data.empty:
-            indices = self.geo_df_bag_data.sindex.query(line_string, predicate="dwithin", distance=MAX_DISTANCE_TO_LINE)
-            new_connections = np.setdiff1d(indices, self.counted_connections_indices)
-            new_connections = np.array([index for index in new_connections if self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"] != None and "woonfunctie" in self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"]])
-            self.counted_connections_indices = np.insert(self.counted_connections_indices, 0, new_connections)
-            ret_val = new_connections.size
+            new_connections = self.lv_line_buildings_mapping[line_string] if line_string in self.lv_line_buildings_mapping else []
+            new_connections = self._remove_connections_with_intersection_at_transformer(new_connections, line_string)
+
+            for index in new_connections:
+                building = self.geo_df_bag_data.take([index])
+                ret_val.append(building)
         return ret_val
 
-    def is_there_industry_at_point(self, point : Point) -> bool:
-        MAX_DISTANCE_TO_POINT = 12.0
-        indices = self.geo_df_bag_data.sindex.query(point, predicate="dwithin", distance=MAX_DISTANCE_TO_POINT)
-        return any("industriefunctie" in self.geo_df_bag_data.take(index)["gebruiksdoel"] for index in indices)
 
     def get_building_year_of_building_at_point(self, point : Point)  -> int:
         if not self.geo_df_bag_data.empty:

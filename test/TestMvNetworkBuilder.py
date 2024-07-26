@@ -23,16 +23,18 @@ class TestLvNetworkBuilder(unittest.TestCase):
             {
                 "id": [1,2],
                 "geometry": [Polygon([(0, 0), (2, 0), (2, 2), (2, 0)]), Polygon([(38, 29), (40, 29), (40, 31), (38, 31)])],
-                "bouwjaar" : [2003, 1984]
+                "bouwjaar" : [2003, 1984],
+                "gebruiksdoel" : ["woonfunctie", "woonfunctie"]
             }
         )
+        self.df_bag_data.set_geometry('geometry')
 
-        self.mv_lines = [LineString([(2, 1), (22, 1)]),
-                LineString([(22, 1), (50, 1)]),
-                LineString([(50, 1.1), (40, 1.1)]),
-                LineString([(40, 1.1), (40, 30)]),
-                LineString([(38, 30), (20, 20)]),
-                LineString([(20, 20), (1, 2)])]
+        self.mv_lines = [LineString([(2, 1), (220, 1)]),
+                LineString([(220, 1), (500, 1)]),
+                LineString([(500, 1.1), (400, 1.1)]),
+                LineString([(400, 1.1), (400, 300)]),
+                LineString([(390, 300), (200, 200)]),
+                LineString([(200, 200), (1, 2)])]
 
         self.mv_lines_geo_df = geopandas.GeoDataFrame(
             {
@@ -44,7 +46,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         self.lv_mv_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
-                "geometry": [Point((39,30))]
+                "geometry": [Point((395,300))]
             }
         )
 
@@ -65,7 +67,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
     def test_mv_network_is_build_correctly(self):
         # Arrange
         parser = AllianderGeoDataNetworkParser(geopandas.GeoDataFrame(), self.lv_mv_geo_df, self.df_bag_data, self.mv_lines_geo_df, self.df_hv_mv_station, GeneratorCableCase.AVG)
-        network_builder = MvNetworkBuilder(parser, 0, 0, 50, 50)
+        network_builder = MvNetworkBuilder(parser, 0, 0, 520, 520)
 
         # Execute
         mv_network = network_builder.generate_a_mv_network("unittest")
@@ -78,10 +80,10 @@ class TestLvNetworkBuilder(unittest.TestCase):
         self.assertEqual(len(electricity_cables), 6)
         self.assertEqual(len(transformers), 3)
 
-        expected_cable_types = ["GPLK-Cu-70", "GPLK-Al-150", "XLPE-Al-150"]
+        expected_cable_types = ["GPLK_Cu_70", "GPLK_Al_150", "XLPE_Al_150"]
         self.assertTrue(all(cable.assetType in expected_cable_types for cable in electricity_cables))
-        self.assertTrue(len([cable.assetType == "GPLK-Al-150" for cable in electricity_cables]), 3)
-        self.assertTrue(len([cable.assetType == "XLPE-Al-150" for cable in electricity_cables]), 3)
+        self.assertTrue(len([cable.assetType == "GPLK_Al_150" for cable in electricity_cables]), 3)
+        self.assertTrue(len([cable.assetType == "XLPE_Al_150" for cable in electricity_cables]), 3)
 
         expected_esdl_lines = []
         for line in self.mv_lines:
@@ -103,10 +105,10 @@ class TestLvNetworkBuilder(unittest.TestCase):
 
     def test_given_mv_cables_not_connected_when_cables_are_close_then_new_trafo_is_added(self):
         # Arrange
-        mv_lines = [LineString([(2, 1), (22, 1)]),
-                 LineString([(22, 1), (50, 1)]),
-                 LineString([(50, 1.1), (40, 1.1)]),
-                 LineString([(40, 1.1), (1, 1.1)])]
+        mv_lines = [LineString([(2, 1), (220, 1)]),
+                 LineString([(220, 1), (500, 1)]),
+                 LineString([(500, 1.1), (400, 1.1)]),
+                 LineString([(400, 1.1), (1, 1.1)])]
         
         df_mv_lines = geopandas.GeoDataFrame(
             {
@@ -116,7 +118,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         )
 
         parser = AllianderGeoDataNetworkParser(geopandas.GeoDataFrame(), self.lv_mv_geo_df, self.df_bag_data, df_mv_lines, self.df_hv_mv_station, GeneratorCableCase.AVG)
-        network_builder = MvNetworkBuilder(parser, 0, 0, 50, 50)
+        network_builder = MvNetworkBuilder(parser, 0, 0, 550, 550)
 
         # Execute
         mv_network = network_builder.generate_a_mv_network("unittest")
@@ -131,10 +133,10 @@ class TestLvNetworkBuilder(unittest.TestCase):
 
     def test_given_mv_cables_not_connected_when_mv_station_is_present_then_new_trafo_is_added(self):
         # Arrange
-        mv_lines = [LineString([(2, 1), (22, 1)]),
-                 LineString([(22, 1), (50, 1)]),
-                 LineString([(50, 1.1), (40, 1.1)]),
-                 LineString([(40, 1.1), (1, 1.1)])]
+        mv_lines = [LineString([(2, 1), (220, 1)]),
+                 LineString([(220, 1), (500, 1)]),
+                 LineString([(500, 1.1), (400, 1.1)]),
+                 LineString([(400, 1.1), (1, 1.1)])]
 
         df_mv_lines = geopandas.GeoDataFrame(
             {
@@ -146,7 +148,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         df_bag_data = geopandas.GeoDataFrame(
             {
                 "id": [1,2],
-                "geometry": [Polygon([(0, 0), (2, 0), (2, 2), (2, 0)]), Polygon([(49, 0), (51, 0), (51, 2), (49, 2)])],
+                "geometry": [Polygon([(0, 0), (2, 0), (2, 2), (2, 0)]), Polygon([(500, 0), (510, 0), (510, 2), (490, 2)])],
                 "bouwjaar" : [2003, 1984]
             }
         )
@@ -154,12 +156,12 @@ class TestLvNetworkBuilder(unittest.TestCase):
         lv_mv_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
-                "geometry": [Point((50,1))]
+                "geometry": [Point((500,1))]
             }
         )
 
         parser = AllianderGeoDataNetworkParser(geopandas.GeoDataFrame(), lv_mv_geo_df, df_bag_data, df_mv_lines, self.df_hv_mv_station, GeneratorCableCase.AVG)
-        network_builder = MvNetworkBuilder(parser, 0, 0, 52, 52)
+        network_builder = MvNetworkBuilder(parser, 0, 0, 520, 520)
 
         # Execute
         mv_network = network_builder.generate_a_mv_network("unittest")
