@@ -58,10 +58,11 @@ class GeoDataNetworkParser(NetworkParser):
         return any("industriefunctie" in self.geo_df_bag_data.take(index)["gebruiksdoel"] for index in indices)
 
     def get_building_year_of_building_at_point(self, point : Point)  -> int:
-        indices = self.geo_df_bag_data.sindex.query(point)
-        for index in indices:
-            building = self.geo_df_bag_data.take([index])
-            return int(building.iloc[0]["bouwjaar"])
+        if not self.geo_df_bag_data.empty:
+            indices = self.geo_df_bag_data.sindex.query(point)
+            for index in indices:
+                building = self.geo_df_bag_data.take([index])
+                return int(building.iloc[0]["bouwjaar"])
         return 1
 
     def get_building_year_of_transformer_house_at_point(self, point : Point) -> int:

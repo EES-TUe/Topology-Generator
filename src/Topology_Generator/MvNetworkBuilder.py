@@ -87,7 +87,7 @@ class MvNetworkBuilder:
     def _find_last_trafo_with_building_year(self, esdl_objs):
         last_trafo_with_building_year = None
         try:
-            last_trafo_with_building_year = next(esdl_obj for esdl_obj in reversed(esdl_objs[:-1]) if (isinstance(esdl_obj, esdl.Transformer) or isinstance(esdl_obj, esdl.Joint)) and esdl_obj.commissioningDate != None and esdl_obj.commissioningDate != datetime.min)
+            last_trafo_with_building_year = next(esdl_obj for esdl_obj in reversed(esdl_objs) if (isinstance(esdl_obj, esdl.Transformer) or isinstance(esdl_obj, esdl.Joint)) and esdl_obj.commissioningDate != None and esdl_obj.commissioningDate != datetime.min)
         except StopIteration:
             raise ValueError(f"No building year found! ({esdl_objs[-1].geometry.lon}, {esdl_objs[-1].geometry.lat})")
         return last_trafo_with_building_year
@@ -99,7 +99,7 @@ class MvNetworkBuilder:
             trafo_year = last_trafo.commissioningDate.year
 
         cable_year = max(trafo_year, year)
-        for esdl_obj in reversed(esdl_objs[:-1]):
+        for esdl_obj in reversed(esdl_objs):
             if isinstance(esdl_obj, esdl.ElectricityCable):
                 esdl_obj.assetType = self.parser.define_cable_type_based_on_year(year)
                 esdl_obj.eSet("commissioningDate", datetime(cable_year, 1, 1))
@@ -131,13 +131,23 @@ class MvNetworkBuilder:
         if building_year != 1:
             to_transformer.eSet("commissioningDate", datetime(building_year, 1, 1))
             to_node.eSet("commissioningDate", datetime(building_year, 1, 1))
-            self._update_cable_types(building_year, esdl_objs)
+            self._update_cable_types(building_year, esdl_objs[:-1])
         else:
             last_trafo_building_year = self._find_last_trafo_with_building_year(esdl_objs)
             to_transformer.eSet("commissioningDate", datetime(last_trafo_building_year.commissioningDate.year, 1, 1))
             to_node.eSet("commissioningDate", datetime(last_trafo_building_year.commissioningDate.year, 1, 1))
-            self._update_cable_types(last_trafo_building_year.commissioningDate.year, esdl_objs)
+            self._update_cable_types(last_trafo_building_year.commissioningDate.year, esdl_objs[:-1])
         return from_node
+
+    def _add_loop_back_cable(self, navigation_line_string : NavigationLineString, from_node : esdl.ConnectableAsset, ret_val : List[esdl.ConnectableAsset], station_at_end_of_line : esdl.ConnectableAsset):
+        esdl_cable = self._generate_esdl_cable(navigation_line_string)
+        last_added_station = self._find_last_trafo_with_building_year(ret_val)
+        to_node = station_at_end_of_line
+        self._connect_edge_to_nodes(from_node, esdl_cable, to_node)
+        commisioning_year = max(to_node.commissioningDate.year, last_added_station.commissioningDate.year)
+        esdl_cable.commissioningDate = datetime(commisioning_year, 1, 1)
+        ret_val.append(esdl_cable)
+        self._update_cable_types(commisioning_year, ret_val)
 
     def _build_mv_network_recursive(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, visited_lines : set, loops_mapping) -> List[esdl.ConnectableAsset]:
         ret_val = [from_node.esdl_obj]
@@ -151,15 +161,8 @@ class MvNetworkBuilder:
                     # Case the line ending has multiple branches
                     station_at_end_of_line = loops_mapping.get(coords, None)
                     if station_at_end_of_line != None:
-                        # Case alogrithm has looped back to a point it has been before
-                        esdl_cable = self._generate_esdl_cable(navigation_line_string)
-                        last_added_station = self._find_last_trafo_with_building_year(ret_val)
-                        to_node = station_at_end_of_line
-                        self._connect_edge_to_nodes(from_node, esdl_cable, to_node)
-                        commisioning_year = max(to_node.commissioningDate.year, last_added_station.commissioningDate.year)
-                        esdl_cable.commissioningDate = datetime(commisioning_year, 1, 1)
-                        ret_val.append(esdl_cable)
-                        self._update_cable_types(commisioning_year, ret_val)
+                        # Case alogrithm has looped back to a point it has been before and next lines are found
+                        self._add_loop_back_cable(navigation_line_string, from_node, ret_val, station_at_end_of_line)
                     elif all(next_line_string_end_pair.index not in visited_lines for next_line_string_end_pair in next_navigation_line_strings_connected_to_station):
                         # Case alogrithm has found a new intersection of lines
                         common_point = GeometryHelperFunctions.get_end_coords(navigation_line_string)
@@ -176,6 +179,7 @@ class MvNetworkBuilder:
                             # Case we have only found dead ends so we do not have a medium voltage ring
                             # So we clear the asset list because we are only interested in mv rings
                             ret_val.clear()
+                            cleared = True
 
                     next_navigation_line_strings.clear()
                     next_navigation_line_strings_connected_to_station.clear()
@@ -192,10 +196,13 @@ class MvNetworkBuilder:
                     from_node = self._add_esdl_node_and_transformer(navigation_line_string, from_node, ret_val)
                     navigation_line_string = next_navigation_line_strings_connected_to_station[0]
                     visited_lines.add(navigation_line_string.index)
-                    
                     next_navigation_line_strings, next_navigation_line_strings_connected_to_station = self._define_next_lines(navigation_line_string, visited_lines)
 
-            if len(next_navigation_line_strings) == 0 and not cleared:
+            coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+            if len(next_navigation_line_strings) + len(next_navigation_line_strings_connected_to_station) == 0 and coords in loops_mapping and not cleared:
+                # Case we have looped back to a station but no next lines are found
+                self._add_loop_back_cable(navigation_line_string, from_node, ret_val, loops_mapping[coords])
+            elif len(next_navigation_line_strings) == 0 and not cleared:
                 # Case we have reached a dead end 
                 # So we clear the asset list because we are only interested in mv rings
                 visited_lines.add(navigation_line_string.index)

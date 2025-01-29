@@ -29,7 +29,8 @@ class EnexisGeoDataNetworkParser(GeoDataNetworkParser):
                 lv_line = self.str_tree_lv_lines.geometries.take(index)
                 point_touches_mv_station = GeometryHelperFunctions.polygon_touches_point(Point(lv_line.coords[0]), station_polygon) 
                 lines_intersecting_with_station.append(NavigationLineString(lv_line, not point_touches_mv_station, index))
-            ret_val.append(StationStartingLinesContainer(lines_intersecting_with_station))
+            building_year = self.get_building_year_of_building_at_point(station)
+            ret_val.append(StationStartingLinesContainer(lines_intersecting_with_station, building_year))
         return ret_val
     
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:

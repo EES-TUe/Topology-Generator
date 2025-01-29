@@ -44,7 +44,7 @@ class TestGeoDataNetworkParser(unittest.TestCase):
         lv_mv_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
-                "geometry": Point(1,1)
+                "geometry": Point(0,1)
             }
         )
         lv_lines_geo_df = geopandas.GeoDataFrame(

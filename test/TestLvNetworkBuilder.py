@@ -130,7 +130,8 @@ class TestLvNetworkBuilder(unittest.TestCase):
         bag_data_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
-                "geometry": [house]
+                "geometry": [house],
+                "gebruiksdoel" : ["woonfunctie"]
             }
         )
 
@@ -162,7 +163,8 @@ class TestLvNetworkBuilder(unittest.TestCase):
         bag_data_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
-                "geometry": [house]
+                "geometry": [house],
+                "gebruiksdoel" : ["woonfunctie"]
             }
         )
 
@@ -201,7 +203,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         
                 network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
                 network_builder = LvNetworkBuilder(network_parser)
-        
+
                 # Execute
                 lv_network_topologies = network_builder.extract_network_and_topologies()
                 lv_network_topologiy = lv_network_topologies[0]
@@ -213,5 +215,4 @@ class TestLvNetworkBuilder(unittest.TestCase):
                 self.assertGreater(len(nx.find_cycle(lv_network_topologiy.network_topology)), 0)
 
 if __name__ == '__main__':
-    # TODO Add test cases to develop that test looping back to station
     unittest.main()
