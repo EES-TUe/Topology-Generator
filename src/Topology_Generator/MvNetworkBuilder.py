@@ -10,6 +10,7 @@ from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from datetime import datetime
 from esdl.esdl_handler import EnergySystemHandler
+from Topology_Generator.Logging import LOGGER
 
 from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.dataclasses import NavigationLineString
@@ -172,7 +173,7 @@ class MvNetworkBuilder:
                         # Only go deeper in recursion if the algorithm has not arrived back at the high voltage station it started
                         ret_val_len_old = len(ret_val)
                         for next_navigation_line_string in next_navigation_line_strings_connected_to_station:
-                            print(f"Diving deeper in recursion at point {coords}")
+                            LOGGER.debug(f"Diving deeper in recursion at point {coords}")
                             new_assets = self._build_mv_network_recursive(next_navigation_line_string, from_node, visited_lines, loops_mapping)
                             ret_val.extend(new_assets[1:])
                         if ret_val_len_old == len(ret_val):
@@ -185,7 +186,7 @@ class MvNetworkBuilder:
                     next_navigation_line_strings_connected_to_station.clear()
                     cleared = True
                 elif len(next_navigation_line_strings) == 1:
-                    # The line has no brances
+                    # The line has no branches
                     from_node = self._add_esdl_node_and_joint(navigation_line_string, from_node, ret_val)
                     navigation_line_string = next_navigation_line_strings[0]
                     visited_lines.add(navigation_line_string.index)
@@ -201,6 +202,7 @@ class MvNetworkBuilder:
             coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
             if len(next_navigation_line_strings) + len(next_navigation_line_strings_connected_to_station) == 0 and coords in loops_mapping and not cleared:
                 # Case we have looped back to a station but no next lines are found
+                visited_lines.add(navigation_line_string.index)
                 self._add_loop_back_cable(navigation_line_string, from_node, ret_val, loops_mapping[coords])
             elif len(next_navigation_line_strings) == 0 and not cleared:
                 # Case we have reached a dead end 
@@ -269,7 +271,7 @@ class MvNetworkBuilder:
 
         return default_loops_mapping, starting_line, starting_line_container.building_year
 
-    def generate_a_mv_network(self, name) -> esdl.EnergySystem:
+    def generate_a_mv_network(self, name : str, save_network : bool = False) -> esdl.EnergySystem:
         network_assets = []
         while len(network_assets) == 0:
             default_loops_mapping, starting_line, building_year = self._initialize_starting_parameters()
@@ -300,5 +302,6 @@ class MvNetworkBuilder:
             if len(network_assets) > 0:
                 EsdlHelperFunctions.add_new_assets_to_energy_system(es, network_assets)
                 EsdlHelperFunctions.add_new_assets_to_energy_system(es, [transformer])
-                esh.save(file_name)
+                if save_network:
+                    esh.save(file_name)
         return es

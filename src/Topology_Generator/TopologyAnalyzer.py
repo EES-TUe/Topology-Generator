@@ -3,6 +3,7 @@ from networkx import Graph, graph_edit_distance
 
 from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.dataclasses import EsdlNetworkTopology, NetworkTopologyInfo
+from Topology_Generator.Logging import LOGGER
 
 class TopologyAnalyzer:
 
@@ -10,9 +11,8 @@ class TopologyAnalyzer:
         self.networks_to_match_against = networks_to_match_against
         self.max_cable_length = self._get_max_length_of_network_cables(self.networks_to_match_against)
         self.max_amount_of_connections = self._get_max_amount_of_connections(self.networks_to_match_against)
-        print(f"Max cable length: {self.max_cable_length}")
-        print(f"Max amount of connections: {self.max_amount_of_connections}")
-        # self.max_amount_of_connections = 
+        LOGGER.info(f"Max cable length: {self.max_cable_length}")
+        LOGGER.info(f"Max amount of connections: {self.max_amount_of_connections}")
 
     def _get_max_length_of_network_topology(self, network_topology : Graph):
         return max([edge[2]["length"] for edge in network_topology.edges.data()])
@@ -44,8 +44,8 @@ class TopologyAnalyzer:
         amount_of_connections_network_to_test = network_to_test.amount_of_connections
         amount_of_connections_network_min_distance = 0
         for network_to_match_against in self.networks_to_match_against:
-            print(f"Starting to match network with {len(network_to_test.network_topology.edges)} edges and {len(network_to_test.network_topology.nodes)} nodes")
-            print(f"Against to network with {len(network_to_match_against.network_topology.edges)} edges and {len(network_to_match_against.network_topology.nodes)} nodes")
+            LOGGER.info(f"Starting to match network with {len(network_to_test.network_topology.edges)} edges and {len(network_to_test.network_topology.nodes)} nodes")
+            LOGGER.info(f"Against to network with {len(network_to_match_against.network_topology.edges)} edges and {len(network_to_match_against.network_topology.nodes)} nodes")
             if len(network_to_match_against.network_topology.edges) < 20:
                 distance = graph_edit_distance(network_to_match_against.network_topology,
                                                network_to_test.network_topology,
@@ -67,9 +67,9 @@ class TopologyAnalyzer:
                     min_distance = distance
                     network_with_min_distance = network_to_match_against
                     amount_of_connections_network_min_distance = amount_of_connections_network_to_match
-        print(f"Distance to network with minimal distance: {min_distance}")
-        print(f"Amount of connections in network to test: {amount_of_connections_network_to_test}")
-        print(f"Amount of connections in network with minimal distance: {amount_of_connections_network_min_distance}")
+        LOGGER.info(f"Distance to network with minimal distance: {min_distance}")
+        LOGGER.info(f"Amount of connections in network to test: {amount_of_connections_network_to_test}")
+        LOGGER.info(f"Amount of connections in network with minimal distance: {amount_of_connections_network_min_distance}")
         if vizualize_result:
             network_plotter = NetworkPlotter(2,2)
             network_plotter.plot_network_topology(network_to_test.network_topology)

@@ -28,11 +28,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
         )
 
         self.mv_lines = [LineString([(2, 1), (22, 1)]),
-                 LineString([(22, 1), (50, 1)]),
-                 LineString([(50, 1.1), (40, 1.1)]),
-                 LineString([(40, 1.1), (40, 30)]),
-                 LineString([(38, 30), (20, 20)]),
-                 LineString([(20, 20), (1, 2)])]
+                LineString([(22, 1), (50, 1)]),
+                LineString([(50, 1.1), (40, 1.1)]),
+                LineString([(40, 1.1), (40, 30)]),
+                LineString([(38, 30), (20, 20)]),
+                LineString([(20, 20), (1, 2)])]
 
         self.mv_lines_geo_df = geopandas.GeoDataFrame(
             {
