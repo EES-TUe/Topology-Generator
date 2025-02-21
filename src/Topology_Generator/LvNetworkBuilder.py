@@ -16,7 +16,7 @@ class LvNetworkBuilder:
     def _add_node_and_edge(self, network_graph : nx.Graph, from_node : int, last_added_node : int, edge_label : EdgeLabel) -> int:
         last_added_node += 1
         network_graph.add_node(last_added_node)
-        network_graph.add_edge(from_node, last_added_node, length=edge_label.length, amount_of_connections=edge_label.amount_of_connections)
+        network_graph.add_edge(from_node, last_added_node, length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
 
         return last_added_node
 
@@ -49,7 +49,7 @@ class LvNetworkBuilder:
                     common_point = next((common_point for common_point in common_points if common_point in loops_mapping ), None)
                     if common_point != None:
                         # Case alogrithm has looped back to a point it has been before
-                        network_graph.add_edge(from_node, loops_mapping[common_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections)
+                        network_graph.add_edge(from_node, loops_mapping[common_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
                         if visited_lines[0].index in [next_navigation_line_string.index for next_navigation_line_string in next_navigation_line_strings]:
                             # Case alogrithm looped back to the starting point
                             next_navigation_line_strings.clear()
@@ -70,13 +70,13 @@ class LvNetworkBuilder:
                     navigation_line_string = next_navigation_line_strings[0]
                     visited_lines.append(navigation_line_string)
                     self._update_line_labels(navigation_line_string, edge_label)
-                    next_navigation_line_strings =  self.get_next_lines_lv_network(navigation_line_string)
+                    next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
             if len(next_navigation_line_strings) == 0 and not cleared:
                 # Case we have reached a dead end or looped back to mv lv station
                 connection_point = GeometryHelperFunctions.get_end_coords(navigation_line_string)
                 if connection_point in loops_mapping:
-                    network_graph.add_edge(from_node, loops_mapping[connection_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections)
+                    network_graph.add_edge(from_node, loops_mapping[connection_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
                 else:
                     last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
 
@@ -84,7 +84,10 @@ class LvNetworkBuilder:
 
     def _update_line_labels(self, navigation_line_string : NavigationLineString, edge_label : EdgeLabel) -> EdgeLabel:
         edge_label.length += self.parser.get_line_length_from_metadata(navigation_line_string.line_string)
-        edge_label.amount_of_connections += self.parser.get_amount_of_connections_bordering_line(navigation_line_string.line_string)
+        houses = self.parser.get_houses_bordering_line(navigation_line_string.line_string)
+        edge_label.amount_of_connections += len(houses) if len(houses) > 0 else self.parser.get_amount_of_connections_bordering_line(navigation_line_string.line_string)
+        edge_label.houses_bordering_line.extend(houses)
+        edge_label.line_strings.append(navigation_line_string)
 
     def compute_lv_network_topology_from_lv_mv_station(self, starting_line : NavigationLineString, loops_mapping : dict[Tuple[float, float], int] ) -> Tuple[NetworkTopologyInfo, List[int]]:
         network_graph = nx.Graph()

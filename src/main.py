@@ -1,5 +1,8 @@
 
+from typing import List
 import pandas as pd
+from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
+from Topology_Generator.Logging import LOGGER
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.MvEnergySystemBuilder import MvEnergySystemBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
@@ -9,9 +12,12 @@ from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
 from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
+from shapely import Point, LineString, distance, intersection
 import geopandas
 from esdl.esdl_handler import EnergySystemHandler
 import matplotlib.pyplot as plt
+
+from Topology_Generator.dataclasses import NetworkTopologyInfo
 
 def normalize(arr, t_min, t_max):
     norm_arr = []
@@ -21,6 +27,36 @@ def normalize(arr, t_min, t_max):
         temp = (((i - min(arr))*diff)/diff_arr) + t_min
         norm_arr.append(temp)
     return norm_arr
+
+def add_lines_connected_to_homes( network_topology_infos : List[NetworkTopologyInfo]):
+    for network_topology_info in network_topology_infos:
+        for edge in network_topology_info.network_topology.edges.items():
+            buildings_bordering_edge = edge[1]["houses"] 
+            associated_lines = edge[1]["line_strings"] 
+            points = [point for line in associated_lines for point in GeometryHelperFunctions.get_coords_in_order(line)]
+            line_string_edge = LineString(points)
+
+            for building in buildings_bordering_edge:
+                for coord in building.boundary.coords:
+                    point = Point(coord)
+                    # min([distance(point, line.line_string) for line in associated_lines])
+                    closest_line = min(associated_lines, key=lambda line, point = point: distance(line.line_string, point))
+                    for i in range(0, len(closest_line.line_string.coords) - 1):
+                        point_a = closest_line.line_string.coords[i]
+                        point_b = closest_line.line_string.coords[i+1]
+                        if point_a[0] > point_b[0]:
+                            point_a = closest_line.line_string.coords[i+1]
+                            point_b = closest_line.line_string.coords[i]
+                        slope = (point_b[1] - point_a[1]) / (point_b[0] - point_a[0])
+                        c = point_a[1] - slope * point_a[0]
+                        slope_perpidicular = -1 * (1 / slope)
+                        line_segment_perpidicular = LineString([(point.x - 5, (point.x - 5) * slope_perpidicular + c), (point.x + 5, (point.x + 5) * slope_perpidicular + c)])
+                        test_plotter = NetworkPlotter(1,1)
+                        test_plotter.plot_network_with_buildings([LineString([point_a, point_b]), line_segment_perpidicular], [building], True, True)
+                        test_plotter.show_plot()
+                        if line_segment_perpidicular.intersects(LineString([point_a, point_b])):
+                            bla = intersection(line_segment_perpidicular, LineString([point_a, point_b]))
+                            new_line = LineString([coord, (0,0)])
 
 def main():
 
@@ -34,16 +70,16 @@ def main():
     # y_top_right = 552992
 
     # Full network
-    esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch6_Net2_BU19403201_2030.esdl")
-    esdl_network_builder = LvNetworkBuilder(esdl_parser)
-    networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
-    # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
-    full_network_plotter = NetworkPlotter(1,1)
-    full_network_plotter.plot_network(esdl_parser.all_lv_lines)
-    full_network_plotter.show_plot()
-    for network_to_match_against in networks_to_match_against:
-        amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
-        print(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
+    # esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net1_BU03633702_2030.esdl")
+    # esdl_network_builder = LvNetworkBuilder(esdl_parser)
+    # networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
+    # # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
+    # full_network_plotter = NetworkPlotter(1,1)
+    # full_network_plotter.plot_network(esdl_parser.all_lv_lines)
+    # full_network_plotter.show_plot()
+    # for network_to_match_against in networks_to_match_against:
+    #     amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
+    #     LOGGER.info(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
         # network_plotter = NetworkPlotter(2,1)
         # network_plotter.plot_network(network_to_match_against.network_lines)
         # network_plotter.plot_network_topology(network_to_match_against.network_topology)
@@ -64,6 +100,12 @@ def main():
     geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='onderstations', bbox=bbox)
     generator_cable_case = GeneratorCableCase.THICK
     network_parser = AllianderGeoDataNetworkParser(geo_df_lv_lines, geo_df_mv_lv_stations, geo_df_bag_data, geo_df_mv_kabels, geo_df_hv_stations, generator_cable_case)
+
+
+    lv_network_builder = LvNetworkBuilder(network_parser)
+    transfomer_point = Point(158228.036, 433707.268)
+    network_topology_infos = lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
+    add_lines_connected_to_homes(network_topology_infos)
 
     # Enexis
     # lv_lines_shp_path = "C:/Users/20180029/datasets/Topologie_archetype_data/ENEXIS_Elektra_shape/Enexis_e_ls_verbinding/nbnl_e_ls_verbinding.shp"
@@ -107,50 +149,49 @@ def main():
             "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch8_Net1_BU02890802_2030.esdl"
         ]
     }
-    # mv_network_builder.extract_mv_networks("test")
-    mv_network = None
-    for i in range(0,5):
-        mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
-        mv_network_builder.plot_mv_network(mv_network)
+    # mv_network = None
+    # mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
+    # mv_network_builder.plot_mv_network(mv_network)
     
-    bla = MvEnergySystemBuilder(LvNetworkBuilder(network_parser), archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
-    for i in range(0,2):
-        energy_system_output = bla.build_mv_energy_system(mv_network)
-        esh = EnergySystemHandler(energy_system_output.energy_system)
-        esh.save(f"mv-energy-system{i}.esdl")
-        if len(energy_system_output.amount_of_connections_correlation) > 0 and len(energy_system_output.length_correlation) > 0:
-            x1,y1 = zip(*energy_system_output.amount_of_connections_correlation)
-            x2,y2 = zip(*energy_system_output.length_correlation)
-            with open("out.txt", mode="a") as file:
-                file.write(f"Output non normalized values of iteration {i}\n")
-                file.write(f"x1 values: {x1}\n")
-                file.write(f"y1 values: {y1}\n")
-                file.write(f"x2 values: {x2}\n")
-                file.write(f"y2 values: {y2}\n")
-            if min(x1) != max(x1) and min(y1) != max(y1) and min(x2) != max(x2) and min(y2) != max(y2):
-                x1y1_norm = normalize(x1 + y1, 0, 1)
-                x1 = x1y1_norm[:len(x1)]
-                y1 = x1y1_norm[len(x1):]
-                x2y2_norm = normalize(x2 + y2, 0, 1)
-                x2 = x2y2_norm[:len(x2)]
-                y2 = x2y2_norm[len(x2):]
-                with open("out.txt", mode="a") as file:
-                    file.write(f"Output normalized values of iteration {i}\n")
-                    file.write(f"x1 values: {x1}\n")
-                    file.write(f"y1 values: {y1}\n")
-                    file.write(f"x2 values: {x2}\n")
-                    file.write(f"y2 values: {y2}\n")
-                plt.subplot(1,2,1)
-                plt.scatter(x1, y1, color='blue')
-                plt.plot([0,1],[0,1])
-                plt.xlabel("Amount of connections in found lv network")
-                plt.ylabel("Amount of connections in matched lv network")
-                plt.subplot(1,2,2)
-                plt.scatter(x2,y2, color='orange')
-                plt.plot([0,1],[0,1])
-                plt.xlabel("Total length of cables in found lv network")
-                plt.ylabel("Total length of cables in matched lv network")
-                plt.show()
+    # bla = MvEnergySystemBuilder(lv_network_builder, archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
+    # bla.build_mv_energy_system(mv_network)
+    # for i in range(0,2):
+    #     energy_system_output = bla.build_mv_energy_system(mv_network)
+    #     esh = EnergySystemHandler(energy_system_output.energy_system)
+    #     esh.save(f"mv-energy-system{i}.esdl")
+    #     if len(energy_system_output.amount_of_connections_correlation) > 0 and len(energy_system_output.length_correlation) > 0:
+    #         x1,y1 = zip(*energy_system_output.amount_of_connections_correlation)
+    #         x2,y2 = zip(*energy_system_output.length_correlation)
+    #         with open("out.txt", mode="a") as file:
+    #             file.write(f"Output non normalized values of iteration {i}\n")
+    #             file.write(f"x1 values: {x1}\n")
+    #             file.write(f"y1 values: {y1}\n")
+    #             file.write(f"x2 values: {x2}\n")
+    #             file.write(f"y2 values: {y2}\n")
+    #         if min(x1) != max(x1) and min(y1) != max(y1) and min(x2) != max(x2) and min(y2) != max(y2):
+    #             x1y1_norm = normalize(x1 + y1, 0, 1)
+    #             x1 = x1y1_norm[:len(x1)]
+    #             y1 = x1y1_norm[len(x1):]
+    #             x2y2_norm = normalize(x2 + y2, 0, 1)
+    #             x2 = x2y2_norm[:len(x2)]
+    #             y2 = x2y2_norm[len(x2):]
+    #             with open("out.txt", mode="a") as file:
+    #                 file.write(f"Output normalized values of iteration {i}\n")
+    #                 file.write(f"x1 values: {x1}\n")
+    #                 file.write(f"y1 values: {y1}\n")
+    #                 file.write(f"x2 values: {x2}\n")
+    #                 file.write(f"y2 values: {y2}\n")
+    #             plt.subplot(1,2,1)
+    #             plt.scatter(x1, y1, color='blue')
+    #             plt.plot([0,1],[0,1])
+    #             plt.xlabel("Amount of connections in found lv network")
+    #             plt.ylabel("Amount of connections in matched lv network")
+    #             plt.subplot(1,2,2)
+    #             plt.scatter(x2,y2, color='orange')
+    #             plt.plot([0,1],[0,1])
+    #             plt.xlabel("Total length of cables in found lv network")
+    #             plt.ylabel("Total length of cables in matched lv network")
+    #             plt.show()
     # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
     
     # add case for loops mapping on station level

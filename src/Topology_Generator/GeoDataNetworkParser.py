@@ -1,4 +1,5 @@
 from typing import List
+from esdl import Polygon
 from shapely import LineString, MultiLineString, Point
 import geopandas
 import numpy as np
@@ -41,15 +42,18 @@ class GeoDataNetworkParser(NetworkParser):
         # Method should be overriden by derrived classes
         pass
 
-    def get_amount_of_connections_bordering_line(self, line_string : LineString) -> int:
+    def get_houses_bordering_line(self, line_string : LineString) -> List[Polygon]:
         MAX_DISTANCE_TO_LINE = 20.0
-        ret_val = 0.0
+        ret_val = []
         if not self.geo_df_bag_data.empty:
             indices = self.geo_df_bag_data.sindex.query(line_string, predicate="dwithin", distance=MAX_DISTANCE_TO_LINE)
             new_connections = np.setdiff1d(indices, self.counted_connections_indices)
             new_connections = np.array([index for index in new_connections if self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"] != None and "woonfunctie" in self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"]])
             self.counted_connections_indices = np.insert(self.counted_connections_indices, 0, new_connections)
-            ret_val = new_connections.size
+
+            for index in new_connections:
+                building = self.geo_df_bag_data.take([index])
+                ret_val.append(building.geometry.iloc[0])
         return ret_val
 
     def is_there_industry_at_point(self, point : Point) -> bool:

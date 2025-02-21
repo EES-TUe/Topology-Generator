@@ -68,3 +68,7 @@ class GeometryHelperFunctions:
     @staticmethod
     def get_connected_coords(navigation_line_string : NavigationLineString):
         return navigation_line_string.line_string.coords[-1] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords[0]
+    
+    @staticmethod
+    def get_coords_in_order(navigation_line_string : NavigationLineString):
+        return navigation_line_string.line_string.coords[::-1] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords

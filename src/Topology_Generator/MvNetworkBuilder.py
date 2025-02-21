@@ -67,8 +67,6 @@ class MvNetworkBuilder:
         cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return cable
 
-    
-
     def _connect_edge_to_nodes(self, from_node, esdl_cable, to_node):
         esdl_cable.port[1].connectedTo.append(to_node.port[0])
         esdl_cable.port[0].connectedTo.append(from_node.esdl_obj.port[1])
