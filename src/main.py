@@ -33,30 +33,53 @@ def add_lines_connected_to_homes( network_topology_infos : List[NetworkTopologyI
         for edge in network_topology_info.network_topology.edges.items():
             buildings_bordering_edge = edge[1]["houses"] 
             associated_lines = edge[1]["line_strings"] 
-            points = [point for line in associated_lines for point in GeometryHelperFunctions.get_coords_in_order(line)]
-            line_string_edge = LineString(points)
+            lines_to_homes = []
 
             for building in buildings_bordering_edge:
-                for coord in building.boundary.coords:
+                
+                coord_index = 0
+                potential_lines_to_home = []
+                while coord_index < len(building.boundary.coords):
+                    coord = building.boundary.coords[coord_index]
                     point = Point(coord)
-                    # min([distance(point, line.line_string) for line in associated_lines])
+
                     closest_line = min(associated_lines, key=lambda line, point = point: distance(line.line_string, point))
-                    for i in range(0, len(closest_line.line_string.coords) - 1):
-                        point_a = closest_line.line_string.coords[i]
-                        point_b = closest_line.line_string.coords[i+1]
+
+                    closest_line_index = 0
+                    found_line_to_home = False
+                    while not found_line_to_home and closest_line_index < len(closest_line.line_string.coords) - 1:
+                        point_a = closest_line.line_string.coords[closest_line_index]
+                        point_b = closest_line.line_string.coords[closest_line_index+1]
                         if point_a[0] > point_b[0]:
-                            point_a = closest_line.line_string.coords[i+1]
-                            point_b = closest_line.line_string.coords[i]
+                            point_a = closest_line.line_string.coords[closest_line_index+1]
+                            point_b = closest_line.line_string.coords[closest_line_index]
                         slope = (point_b[1] - point_a[1]) / (point_b[0] - point_a[0])
-                        c = point_a[1] - slope * point_a[0]
                         slope_perpidicular = -1 * (1 / slope)
-                        line_segment_perpidicular = LineString([(point.x - 5, (point.x - 5) * slope_perpidicular + c), (point.x + 5, (point.x + 5) * slope_perpidicular + c)])
-                        test_plotter = NetworkPlotter(1,1)
-                        test_plotter.plot_network_with_buildings([LineString([point_a, point_b]), line_segment_perpidicular], [building], True, True)
-                        test_plotter.show_plot()
-                        if line_segment_perpidicular.intersects(LineString([point_a, point_b])):
-                            bla = intersection(line_segment_perpidicular, LineString([point_a, point_b]))
-                            new_line = LineString([coord, (0,0)])
+                        b = point.y - slope_perpidicular * point.x
+
+                        TOUCH_MARGIN = 15
+                        line_segment_perpidicular_positive = LineString([(point.x - TOUCH_MARGIN, slope_perpidicular * (point.x - TOUCH_MARGIN) + b), (point.x, point.y)])
+                        line_segment_perpidicular_negative = LineString([(point.x, point.y), (point.x + TOUCH_MARGIN, slope_perpidicular * (point.x + TOUCH_MARGIN) + b)])
+                        positive_intersection_building = line_segment_perpidicular_positive.intersection(building)
+                        negative_intersection_building = line_segment_perpidicular_negative.intersection(building)
+                        positive_intersection_line = intersection(line_segment_perpidicular_positive, LineString([point_a, point_b]))
+                        negative_intersection_line = intersection(line_segment_perpidicular_negative, LineString([point_a, point_b]))
+                        if not positive_intersection_line.is_empty and positive_intersection_building.geom_type == "Point":
+                            potential_lines_to_home.append(LineString([positive_intersection_line, point]))
+                            found_line_to_home = True
+                        elif not negative_intersection_line.is_empty and negative_intersection_building.geom_type == "Point":
+                            potential_lines_to_home.append(LineString([negative_intersection_line, point]))
+                            found_line_to_home = True
+                        closest_line_index += 1
+
+                    coord_index += 1
+                if len(potential_lines_to_home) > 0:
+                    lines_to_homes.append(min(potential_lines_to_home, key=lambda line: line.length))
+
+            test_plotter = NetworkPlotter(1,1)
+            test_plotter.plot_network_with_buildings(network_topology_info.network_lines + lines_to_homes, buildings_bordering_edge)
+            test_plotter.show_plot()
+
 
 def main():
 
