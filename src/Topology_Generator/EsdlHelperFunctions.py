@@ -1,6 +1,7 @@
 import uuid
 from esdl import esdl
 from typing import List
+from shapely import LineString
 
 class EsdlHelperFunctions:
 
@@ -33,3 +34,12 @@ class EsdlHelperFunctions:
         joint.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         joint.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return joint
+    
+    @staticmethod
+    def convert_esdl_cable_to_line_string(cable : esdl.ElectricityCable) -> LineString:
+        points = []
+        for geo_property in cable.geometry.eAllContents():
+            if isinstance(geo_property, esdl.Point):
+                new_point = (geo_property.lat, geo_property.lon)
+                points.append(new_point)
+        return LineString(points)

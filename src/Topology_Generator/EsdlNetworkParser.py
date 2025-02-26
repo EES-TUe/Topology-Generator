@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 from esdl import esdl
 from esdl.esdl_handler import EnergySystemHandler
-from shapely import LineString, Point, dwithin
+from shapely import LineString, Point, dwithin, distance
 
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
@@ -16,7 +16,7 @@ class MetaDataESDLCable:
     attached_assets : List[esdl.ConnectableAsset]
 
 class EsdlNetworkParser(NetworkParser):
-    def __init__(self, esdl_path : str = "", energy_system : esdl.EnergySystem = None):
+    def __init__(self, esdl_path : str = "", energy_system : esdl.EnergySystem = None, transformer_touch_margin = 0.00000001):
         if esdl_path != "":
             esh = EnergySystemHandler()
             esh.load_file(esdl_path)
@@ -28,7 +28,7 @@ class EsdlNetworkParser(NetworkParser):
         self.lines_to_homes : List[esdl.ElectricityCable] = []
         self.cables : List[esdl.ElectricityCable] = []
         self.transformers : List[esdl.Transformer] = []
-        self.transformer_touch_margin = 0.00000001
+        self.transformer_touch_margin = transformer_touch_margin
         super().__init__()
         self._init_transformer_mapping()
 
@@ -105,18 +105,37 @@ class EsdlNetworkParser(NetworkParser):
 
     def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
         return [value for value in self.lines_connected_to_transformer_mapping.values()]
+    
+    def extract_esdl_cables_connected_to_mv_lv_station(self, transformer : esdl.Transformer) -> List[esdl.ElectricityCable]:
+        cables = []
+        out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(transformer)
+        for out_port in out_ports:
+            for connected_port in out_port.connectedTo:
+                joint = connected_port.eContainer()
+                out_ports_joint = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(joint)
+                for out_port_joint in out_ports_joint:
+                    for connected_port_joint in out_port_joint.connectedTo:
+                        cable = connected_port_joint.eContainer()
+                        if isinstance(cable, esdl.ElectricityCable):
+                            cables.append(cable)
+        return cables
+
 
     def _init_transformer_mapping(self) -> List[StationStartingLinesContainer]:
+        lines_intersecting_with_station = []
+
         for transformer in self.transformers:
-            transformer_location = Point(transformer.geometry.lat, transformer.geometry.lon)
-            lv_lines_indices = self.str_tree_lv_lines.query(transformer_location, 'touches')
-            lines_intersecting_with_station = []
-            for index in lv_lines_indices:
-                lv_line = self.str_tree_lv_lines.geometries.take(index)
-                point_touches_mv_station = GeometryHelperFunctions.points_are_close(lv_line.coords[0], (transformer.geometry.lat, transformer.geometry.lon)) 
-                lines_intersecting_with_station.append(NavigationLineString(lv_line, not point_touches_mv_station, index))
-            self.lines_connected_to_transformer_mapping[transformer] = StationStartingLinesContainer(lines_intersecting_with_station, 1)
-    
+            cables = self.extract_esdl_cables_connected_to_mv_lv_station(transformer)
+            for cable in cables:
+                line_string = EsdlHelperFunctions.convert_esdl_cable_to_line_string(cable)
+                lv_line_index = self.str_tree_lv_lines.query(line_string, 'covers')
+                lv_line = self.str_tree_lv_lines.geometries.take(lv_line_index[0])
+                transformer_point = Point(transformer.geometry.lat, transformer.geometry.lon)
+                first_point_touches_mv_station = distance(Point(lv_line.coords[0]), transformer_point) < distance(Point(lv_line.coords[-1]), transformer_point) 
+                lines_intersecting_with_station.append(NavigationLineString(lv_line, not first_point_touches_mv_station, lv_line_index))
+                self.lines_connected_to_transformer_mapping[transformer] = StationStartingLinesContainer(lines_intersecting_with_station, 1)
+
+
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for transformer in self.transformers:
             transformer_location = Point(transformer.geometry.lat, transformer.geometry.lon)
@@ -129,13 +148,8 @@ class EsdlNetworkParser(NetworkParser):
         ret_val = []
 
         for cable in self.cables:
-            points = []
             if cable not in self.lines_to_homes:
-                for geo_property in cable.geometry.eAllContents():
-                    if isinstance(geo_property, esdl.Point):
-                        new_point = (geo_property.lat, geo_property.lon)
-                        points.append(new_point)
-                new_line_string = LineString(points)
+                new_line_string = EsdlHelperFunctions.convert_esdl_cable_to_line_string(cable)
                 if new_line_string not in ret_val:
                     ret_val.append(new_line_string)
                     self.line_string_meta_data[new_line_string] = esdl_obj_meta_data[cable] if cable in esdl_obj_meta_data.keys() else MetaDataESDLCable(cable, 0, [cable.port[0].connectedTo[0].eContainer(), cable.port[1].connectedTo[0].eContainer()])
