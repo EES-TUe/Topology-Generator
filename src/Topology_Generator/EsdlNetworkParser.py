@@ -43,7 +43,7 @@ class EsdlNetworkParser(NetworkParser):
                 for port in EsdlHelperFunctions.get_all_in_ports_from_esdl_obj(home):
                     for esdl_out_port in port.connectedTo:
                         cable = esdl_out_port.eContainer()
-                        # self.lines_to_homes.append(cable)
+                        self.lines_to_homes.append(cable)
                         self.update_esdl_cable_metadata(cable, home.eContainer(), esdl_obj_meta_data)
 
             self.cables = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.ElectricityCable)

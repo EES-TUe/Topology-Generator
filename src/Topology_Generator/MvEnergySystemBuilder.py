@@ -5,11 +5,10 @@ from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
 from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import EnergySystemOutput, EsdlNetworkTopology, NetworkTopologyInfo
+from Topology_Generator.dataclasses import EnergySystemOutput, EsdlNetworkTopology, NavigationLineString, NetworkTopologyInfo
 from typing import List
-from shapely import Point, LineString
+from shapely import Point, LineString, distance, Polygon, intersection
 from Topology_Generator.Logging import LOGGER
-
 from Topology_Generator.TopologyAnalyzer import TopologyAnalyzer
 
 class MvEnergySystemBuilder:
@@ -50,19 +49,69 @@ class MvEnergySystemBuilder:
         for value in to_remove:
             best_match.network_assets.remove(value)
 
-    def add_lines_connected_to_homes(self, network_topology_infos : List[NetworkTopologyInfo]):
-        for network_topology_info in network_topology_infos:
-            for edge in network_topology_info.network_topology.edges.items():
-                buildings_bordering_edge = edge[1]["houses"] 
-                associated_lines = edge[1]["line_strings"] 
-                points = [point for line in associated_lines for point in line.coords][:-1]
-                line_string_edge = LineString(points)
-                test_plotter = NetworkPlotter(1,1)
-                test_plotter.plot_lines("black", [line_string_edge], False, True)
-                test_plotter.show_plot()
-                for building in buildings_bordering_edge:
-                    for coord in building.boundary.coords:
-                        print(coord)
+
+    def compute_line_to_closest_line(self, building : Polygon, point : Point, closest_line : NavigationLineString) -> LineString:
+        closest_line_index = 0
+        line_connected_to_end_feeder : LineString = None
+        shortest_line_connected_to_end_feeder : LineString = LineString([Point(0,0), Point(1000000000,0)])
+
+        while closest_line_index < len(closest_line.line_string.coords) - 1:
+            point_a = closest_line.line_string.coords[closest_line_index]
+            point_b = closest_line.line_string.coords[closest_line_index+1]
+            if point_a[0] > point_b[0]:
+                point_a = closest_line.line_string.coords[closest_line_index+1]
+                point_b = closest_line.line_string.coords[closest_line_index]
+            slope = (point_b[1] - point_a[1]) / (point_b[0] - point_a[0])
+            slope_perpidicular = -1 * (1 / slope)
+            b = point.y - slope_perpidicular * point.x
+
+            TOUCH_MARGIN = 15
+            line_segment_perpidicular_to_building = LineString([(point.x - TOUCH_MARGIN, slope_perpidicular * (point.x - TOUCH_MARGIN) + b), (point.x, point.y)])
+            line_segment_perpidicular_from_building = LineString([(point.x, point.y), (point.x + TOUCH_MARGIN, slope_perpidicular * (point.x + TOUCH_MARGIN) + b)])
+            positive_intersection_building = line_segment_perpidicular_to_building.intersection(building)
+            negative_intersection_building = line_segment_perpidicular_from_building.intersection(building)
+            positive_intersection_line = intersection(line_segment_perpidicular_to_building, LineString([point_a, point_b]))
+            negative_intersection_line = intersection(line_segment_perpidicular_from_building, LineString([point_a, point_b]))
+            if not positive_intersection_line.is_empty and positive_intersection_building.geom_type == "Point":
+                return LineString([positive_intersection_line, point])
+            elif not negative_intersection_line.is_empty and negative_intersection_building.geom_type == "Point":
+                return LineString([negative_intersection_line, point])
+
+            line_connected_to_end_feeder = LineString([point, Point(point_a)])
+            if distance(point, Point(point_a)) > distance(point, Point(point_b)):
+                line_connected_to_end_feeder = LineString([point, Point(point_b)])
+            if line_connected_to_end_feeder.length < shortest_line_connected_to_end_feeder.length:
+                shortest_line_connected_to_end_feeder = line_connected_to_end_feeder
+            closest_line_index += 1
+
+        return shortest_line_connected_to_end_feeder
+
+
+    def add_lines_connected_to_homes(self, network_topology_info : NetworkTopologyInfo):
+        LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
+        for edge in network_topology_info.network_topology.edges.items():
+            buildings_bordering_edge = edge[1]["houses"] 
+            associated_lines = edge[1]["line_strings"] 
+            lines_to_homes = []
+            for building in buildings_bordering_edge:
+                
+                coord_index = 0
+                potential_lines_to_home = []
+                while coord_index < len(building.boundary.coords):
+                    coord = building.boundary.coords[coord_index]
+                    point = Point(coord)
+                    closest_line = min(associated_lines, key=lambda line, point = point: distance(line.line_string, point))
+                    line_to_closest_line = self.compute_line_to_closest_line(building, point, closest_line)
+                    potential_lines_to_home.append(line_to_closest_line)
+                    coord_index += 1
+
+                if len(potential_lines_to_home) > 0:
+                    lines_to_homes.append(min(potential_lines_to_home, key=lambda line: line.length))
+                    LOGGER.info(f"Added line to home with length: {lines_to_homes[-1].length}")
+            test_plotter = NetworkPlotter(1,1)
+            test_plotter.plot_network_with_buildings(network_topology_info.network_lines + lines_to_homes, buildings_bordering_edge, True)
+            test_plotter.show_plot()
+
 
     def build_mv_energy_system(self, mv_network : EnergySystem) -> EnergySystemOutput:
         if len(mv_network.instance) == 1:
@@ -72,12 +121,12 @@ class MvEnergySystemBuilder:
             amount_of_connections_correlation = []
             lv_lines_to_vizualize = []
             for transfomer in transfomers:
-                LOGGER.debug("Next transformer")
+                LOGGER.debug(f"Next transformer at point: {(transfomer.geometry.lat, transfomer.geometry.lon)}")
                 transfomer_point = Point(transfomer.geometry.lat, transfomer.geometry.lon)
                 network_topology_infos = self.lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
                 if len(network_topology_infos) > 0:
-                    self.add_lines_connected_to_homes(network_topology_infos)
                     archetype = self.archetype_handler.archetype_at_point(transfomer_point)
+                    LOGGER.info(f"LV grid archetype: {archetype}")
                     network_collections = self.archetype_network_mapping[archetype]
                     min_total_distance = 5000000
                     best_matches : List[EsdlNetworkTopology] = []
@@ -91,6 +140,7 @@ class MvEnergySystemBuilder:
                         new_matches = []
                         topology_analyzer = TopologyAnalyzer(network_collection)
                         for network_topology_info in network_topology_infos:
+                            self.add_lines_connected_to_homes(network_topology_info)
                             network_plotter = NetworkPlotter(1,2)
                             network_plotter.plot_network_with_buildings(network_topology_info.network_lines, network_topology_info.buildings, without_axis_numbers=True)
                             network_plotter.plot_network_topology(network_topology_info.network_topology)

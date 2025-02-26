@@ -1,22 +1,15 @@
 
-from typing import List
 import pandas as pd
-from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
-from Topology_Generator.Logging import LOGGER
+from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.MvEnergySystemBuilder import MvEnergySystemBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.AllianderGeoDataNetworkParser import AllianderGeoDataNetworkParser
-from Topology_Generator.EnexisGeoDataNetworkParser import EnexisGeoDataNetworkParser
-from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
-from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
-from shapely import Point, LineString, distance, intersection
 import geopandas
-from esdl.esdl_handler import EnergySystemHandler
-import matplotlib.pyplot as plt
 
+from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.dataclasses import NetworkTopologyInfo
 
 def normalize(arr, t_min, t_max):
@@ -27,58 +20,6 @@ def normalize(arr, t_min, t_max):
         temp = (((i - min(arr))*diff)/diff_arr) + t_min
         norm_arr.append(temp)
     return norm_arr
-
-def add_lines_connected_to_homes( network_topology_infos : List[NetworkTopologyInfo]):
-    for network_topology_info in network_topology_infos:
-        for edge in network_topology_info.network_topology.edges.items():
-            buildings_bordering_edge = edge[1]["houses"] 
-            associated_lines = edge[1]["line_strings"] 
-            lines_to_homes = []
-
-            for building in buildings_bordering_edge:
-                
-                coord_index = 0
-                potential_lines_to_home = []
-                while coord_index < len(building.boundary.coords):
-                    coord = building.boundary.coords[coord_index]
-                    point = Point(coord)
-
-                    closest_line = min(associated_lines, key=lambda line, point = point: distance(line.line_string, point))
-
-                    closest_line_index = 0
-                    found_line_to_home = False
-                    while not found_line_to_home and closest_line_index < len(closest_line.line_string.coords) - 1:
-                        point_a = closest_line.line_string.coords[closest_line_index]
-                        point_b = closest_line.line_string.coords[closest_line_index+1]
-                        if point_a[0] > point_b[0]:
-                            point_a = closest_line.line_string.coords[closest_line_index+1]
-                            point_b = closest_line.line_string.coords[closest_line_index]
-                        slope = (point_b[1] - point_a[1]) / (point_b[0] - point_a[0])
-                        slope_perpidicular = -1 * (1 / slope)
-                        b = point.y - slope_perpidicular * point.x
-
-                        TOUCH_MARGIN = 15
-                        line_segment_perpidicular_positive = LineString([(point.x - TOUCH_MARGIN, slope_perpidicular * (point.x - TOUCH_MARGIN) + b), (point.x, point.y)])
-                        line_segment_perpidicular_negative = LineString([(point.x, point.y), (point.x + TOUCH_MARGIN, slope_perpidicular * (point.x + TOUCH_MARGIN) + b)])
-                        positive_intersection_building = line_segment_perpidicular_positive.intersection(building)
-                        negative_intersection_building = line_segment_perpidicular_negative.intersection(building)
-                        positive_intersection_line = intersection(line_segment_perpidicular_positive, LineString([point_a, point_b]))
-                        negative_intersection_line = intersection(line_segment_perpidicular_negative, LineString([point_a, point_b]))
-                        if not positive_intersection_line.is_empty and positive_intersection_building.geom_type == "Point":
-                            potential_lines_to_home.append(LineString([positive_intersection_line, point]))
-                            found_line_to_home = True
-                        elif not negative_intersection_line.is_empty and negative_intersection_building.geom_type == "Point":
-                            potential_lines_to_home.append(LineString([negative_intersection_line, point]))
-                            found_line_to_home = True
-                        closest_line_index += 1
-
-                    coord_index += 1
-                if len(potential_lines_to_home) > 0:
-                    lines_to_homes.append(min(potential_lines_to_home, key=lambda line: line.length))
-
-            test_plotter = NetworkPlotter(1,1)
-            test_plotter.plot_network_with_buildings(network_topology_info.network_lines + lines_to_homes, buildings_bordering_edge)
-            test_plotter.show_plot()
 
 
 def main():
@@ -93,20 +34,21 @@ def main():
     # y_top_right = 552992
 
     # Full network
-    # esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net1_BU03633702_2030.esdl")
-    # esdl_network_builder = LvNetworkBuilder(esdl_parser)
-    # networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
-    # # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
-    # full_network_plotter = NetworkPlotter(1,1)
-    # full_network_plotter.plot_network(esdl_parser.all_lv_lines)
-    # full_network_plotter.show_plot()
-    # for network_to_match_against in networks_to_match_against:
-    #     amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
-    #     LOGGER.info(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
-        # network_plotter = NetworkPlotter(2,1)
-        # network_plotter.plot_network(network_to_match_against.network_lines)
-        # network_plotter.plot_network_topology(network_to_match_against.network_topology)
-        # network_plotter.show_plot()
+    esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net1_BU03633702_2030.esdl", transformer_touch_margin=3.0)
+    esdl_network_builder = LvNetworkBuilder(esdl_parser)
+    networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
+    # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
+    full_network_plotter = NetworkPlotter(1,1)
+    full_network_plotter.plot_network(esdl_parser.all_lv_lines)
+    full_network_plotter.show_plot()
+    for network_to_match_against in networks_to_match_against:
+        # amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
+        # LOGGER.info(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
+        network_plotter = NetworkPlotter(2,1)
+        network_plotter.plot_network(network_to_match_against.network_lines)
+        network_plotter.plot_network_topology(network_to_match_against.network_topology)
+        network_plotter.show_plot()
+
 
     bbox = (x_bottom_left, y_bottom_left, x_top_right, y_top_right)
 
@@ -126,9 +68,8 @@ def main():
 
 
     lv_network_builder = LvNetworkBuilder(network_parser)
-    transfomer_point = Point(158228.036, 433707.268)
-    network_topology_infos = lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
-    add_lines_connected_to_homes(network_topology_infos)
+    # transfomer_point = Point(158228.036, 433707.268)
+    # network_topology_infos = lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
 
     # Enexis
     # lv_lines_shp_path = "C:/Users/20180029/datasets/Topologie_archetype_data/ENEXIS_Elektra_shape/Enexis_e_ls_verbinding/nbnl_e_ls_verbinding.shp"
@@ -173,11 +114,11 @@ def main():
         ]
     }
     # mv_network = None
-    # mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
-    # mv_network_builder.plot_mv_network(mv_network)
-    
-    # bla = MvEnergySystemBuilder(lv_network_builder, archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
-    # bla.build_mv_energy_system(mv_network)
+    mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
+    mv_network_builder.plot_mv_network(mv_network)
+
+    bla = MvEnergySystemBuilder(lv_network_builder, archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
+    bla.build_mv_energy_system(mv_network)
     # for i in range(0,2):
     #     energy_system_output = bla.build_mv_energy_system(mv_network)
     #     esh = EnergySystemHandler(energy_system_output.energy_system)

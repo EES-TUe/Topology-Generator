@@ -39,7 +39,7 @@ class LvNetworkBuilder:
             edge_label = EdgeLabel(0, 0)
             self._update_line_labels(navigation_line_string, edge_label)
             next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
-            
+
             cleared = False
 
             while len(next_navigation_line_strings) > 0:
