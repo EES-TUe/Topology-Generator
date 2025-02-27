@@ -6,6 +6,7 @@ from shapely import LineString, Point, dwithin
 
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
+from Topology_Generator.Logging import LOGGER
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from Topology_Generator.dataclasses import NavigationLineString
 
@@ -32,6 +33,32 @@ class EsdlNetworkParser(NetworkParser):
         super().__init__()
         self._init_transformer_mapping()
 
+    def extract_lines_to_homes(self, home : esdl.Building) -> List[esdl.ElectricityCable]:
+        in_ports = EsdlHelperFunctions.get_all_in_ports_from_esdl_obj(home)
+        ret_val = []
+        if len(in_ports) == 1:
+            start_port = in_ports[0]
+            first_cable = start_port.connectedTo[0].eContainer()
+            ret_val.append(first_cable)
+            esdl_obj = first_cable
+            out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(first_cable)
+            while len(out_ports[0].connectedTo) == 1:
+                in_ports = EsdlHelperFunctions.get_all_in_ports_from_esdl_obj(esdl_obj)
+                esdl_obj = in_ports[0].connectedTo[0].eContainer()
+
+                if isinstance(esdl_obj, esdl.ElectricityCable):
+                    ret_val.append(esdl_obj)
+
+                out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(esdl_obj)
+                if len(out_ports) == 0:
+                    LOGGER.debug(f"No in ports found {esdl_obj.id}")
+                    return [first_cable]
+                if len(out_ports) > 1:
+                    LOGGER.debug(f"More than 1 out port found {esdl_obj.id}")
+                    return [first_cable]
+
+        return ret_val
+
     def _init_generic_collections(self) -> dict[esdl.ElectricityCable, MetaDataESDLCable]:
         esdl_obj_meta_data : dict[esdl.ElectricityCable, MetaDataESDLCable] = {}
         if len(self.energy_system.instance) == 1:
@@ -40,11 +67,9 @@ class EsdlNetworkParser(NetworkParser):
             homes = EsdlHelperFunctions.flatten_list_of_lists([EsdlHelperFunctions.get_all_esdl_objects_from_type(building.asset, esdl.EConnection) for building in buildings])
             self.homes_count = 0
             for home in homes:
-                for port in EsdlHelperFunctions.get_all_in_ports_from_esdl_obj(home):
-                    for esdl_out_port in port.connectedTo:
-                        cable = esdl_out_port.eContainer()
-                        self.lines_to_homes.append(cable)
-                        self.update_esdl_cable_metadata(cable, home.eContainer(), esdl_obj_meta_data)
+                new_cables_to_homes = self.extract_lines_to_homes(home)
+                self.lines_to_homes.extend(new_cables_to_homes)
+                self.update_esdl_cable_metadata(new_cables_to_homes[0], home.eContainer(), esdl_obj_meta_data)
 
             self.cables = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.ElectricityCable)
             self.transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
