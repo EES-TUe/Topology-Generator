@@ -34,7 +34,7 @@ def main():
     # y_top_right = 552992
 
     # Full network
-    esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net1_BU03633702_2030.esdl", transformer_touch_margin=3.0)
+    esdl_parser = EsdlNetworkParser(esdl_path="C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned/Enexis Arch4 Net1 BU00140301 2030.esdl-cleaned")
     esdl_network_builder = LvNetworkBuilder(esdl_parser)
     networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
     # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
