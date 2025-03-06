@@ -42,20 +42,22 @@ class EsdlNetworkParser(NetworkParser):
             ret_val.append(first_cable)
             esdl_obj = first_cable
             out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(first_cable)
-            while len(out_ports[0].connectedTo) == 1:
+            while len(out_ports[0].connectedTo) == 1 and len(in_ports[0].connectedTo) == 1:
                 in_ports = EsdlHelperFunctions.get_all_in_ports_from_esdl_obj(esdl_obj)
-                esdl_obj = in_ports[0].connectedTo[0].eContainer()
 
-                if isinstance(esdl_obj, esdl.ElectricityCable):
-                    ret_val.append(esdl_obj)
+                if len(in_ports[0].connectedTo) == 1:
+                    esdl_obj = in_ports[0].connectedTo[0].eContainer()
 
-                out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(esdl_obj)
-                if len(out_ports) == 0:
-                    LOGGER.debug(f"No in ports found {esdl_obj.id}")
-                    return [first_cable]
-                if len(out_ports) > 1:
-                    LOGGER.debug(f"More than 1 out port found {esdl_obj.id}")
-                    return [first_cable]
+                    if isinstance(esdl_obj, esdl.ElectricityCable):
+                        ret_val.append(esdl_obj)
+
+                    out_ports = EsdlHelperFunctions.get_all_out_ports_from_esdl_obj(esdl_obj)
+                    if len(out_ports) == 0:
+                        LOGGER.debug(f"No in ports found {esdl_obj.id}")
+                        return [first_cable]
+                    if len(out_ports) > 1:
+                        LOGGER.debug(f"More than 1 out port found {esdl_obj.id}")
+                        return [first_cable]
 
         return ret_val
 
@@ -67,9 +69,11 @@ class EsdlNetworkParser(NetworkParser):
             homes = EsdlHelperFunctions.flatten_list_of_lists([EsdlHelperFunctions.get_all_esdl_objects_from_type(building.asset, esdl.EConnection) for building in buildings])
             self.homes_count = 0
             for home in homes:
+                LOGGER.debug(f"Extracting cables connecting home: {home.id}")
                 new_cables_to_homes = self.extract_lines_to_homes(home)
                 self.lines_to_homes.extend(new_cables_to_homes)
                 self.update_esdl_cable_metadata(new_cables_to_homes[0], home.eContainer(), esdl_obj_meta_data)
+                LOGGER.debug(f"Finished extracting cables connecting home: {home.id}")
 
             self.cables = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.ElectricityCable)
             self.transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)

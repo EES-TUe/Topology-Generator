@@ -40,3 +40,9 @@ class EnergySystemOutput:
     energy_system : esdl.EnergySystem
     length_correlation : List[tuple[float, float]]
     amount_of_connections_correlation : List[tuple[int, int]]
+
+@dataclass
+class LineToHomeInput:
+    line : LineString
+    house : esdl.Building
+    cable_to_home : esdl.ElectricityCable

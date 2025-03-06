@@ -5,9 +5,9 @@ from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
 from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import EnergySystemOutput, EsdlNetworkTopology, NavigationLineString, NetworkTopologyInfo
+from Topology_Generator.dataclasses import EnergySystemOutput, EsdlNetworkTopology, LineToHomeInput, NavigationLineString, NetworkTopologyInfo
 from typing import List
-from shapely import Point, LineString, distance, Polygon, intersection
+from shapely import Point, LineString, distance, Polygon, intersection, intersects
 from Topology_Generator.Logging import LOGGER
 from Topology_Generator.TopologyAnalyzer import TopologyAnalyzer
 
@@ -77,9 +77,9 @@ class MvEnergySystemBuilder:
             elif not negative_intersection_line.is_empty and negative_intersection_building.geom_type == "Point":
                 return LineString([negative_intersection_line, point])
 
-            line_connected_to_end_feeder = LineString([point, Point(point_a)])
+            line_connected_to_end_feeder = LineString([Point(point_a), point ])
             if distance(point, Point(point_a)) > distance(point, Point(point_b)):
-                line_connected_to_end_feeder = LineString([point, Point(point_b)])
+                line_connected_to_end_feeder = LineString([Point(point_b), point])
             if line_connected_to_end_feeder.length < shortest_line_connected_to_end_feeder.length:
                 shortest_line_connected_to_end_feeder = line_connected_to_end_feeder
             closest_line_index += 1
@@ -87,7 +87,7 @@ class MvEnergySystemBuilder:
         return shortest_line_connected_to_end_feeder
 
 
-    def add_lines_connected_to_homes(self, network_topology_info : NetworkTopologyInfo):
+    def add_lines_connected_to_homes(self, network_topology_info : NetworkTopologyInfo) -> List[LineToHomeInput]:
         LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
         for edge in network_topology_info.network_topology.edges.items():
             buildings_bordering_edge = edge[1]["houses"] 
@@ -106,14 +106,55 @@ class MvEnergySystemBuilder:
                     coord_index += 1
 
                 if len(potential_lines_to_home) > 0:
-                    lines_to_homes.append(min(potential_lines_to_home, key=lambda line: line.length))
+                    new_linestring_to_home = min(potential_lines_to_home, key=lambda line: line.length)
+                    esdl_building = esdl.Building(name="building")
+                    # generate the three phase networks as well as the in and out ports
+                    esdl_building.geometry = esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1])
+                    new_line_input = LineToHomeInput(new_linestring_to_home, esdl.Building(name="building"), esdl.ElectricityCable(name="cable"))
+                    lines_to_homes.append(new_line_input)
                     LOGGER.info(f"Added line to home with length: {lines_to_homes[-1].length}")
-            test_plotter = NetworkPlotter(1,1)
-            test_plotter.plot_network_with_buildings(network_topology_info.network_lines + lines_to_homes, buildings_bordering_edge, True)
-            test_plotter.show_plot()
+
+        test_plotter = NetworkPlotter(1,1)
+        test_plotter.plot_network_with_buildings(network_topology_info.network_lines + lines_to_homes, buildings_bordering_edge, True)
+        test_plotter.show_plot()
+        return lines_to_homes
+
+
+    def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, network_with_min_distance : EsdlNetworkTopology) -> esdl.EnergySystem:
+        new_lines_to_homes = self.add_lines_connected_to_homes(network_topology_info)
+
+        for line_string in network_topology_info.network_lines:
+            line_that_intersects = next((line for line in new_lines_to_homes if intersects(line, line_string)), None)
+            while line_that_intersects != None:
+                # Create building
+                # Create cable
+                # Create joints
+                # Connect cable to building and joints
+
 
 
     def build_mv_energy_system(self, mv_network : EnergySystem) -> EnergySystemOutput:
+        assets = mv_network.instance[0].area.asset
+        transfomers : List[esdl.Transformer] = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
+
+        lv_lines_to_vizualize = []
+        for transfomer in transfomers:
+            LOGGER.debug(f"Next transformer at point: {(transfomer.geometry.lat, transfomer.geometry.lon)}")
+            transfomer_point = Point(transfomer.geometry.lat, transfomer.geometry.lon)
+            network_topology_infos = self.lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
+            if len(network_topology_infos) > 0:
+                archetype = self.archetype_handler.archetype_at_point(transfomer_point)
+                LOGGER.info(f"LV grid archetype: {archetype}")
+                network_collections = self.archetype_network_mapping[archetype]
+                for i, network_collection in enumerate(network_collections):
+                    topology_analyzer = TopologyAnalyzer(network_collection)
+                    for network_topology_info in network_topology_infos:
+                        lv_lines_to_vizualize.extend(network_topology_info.network_lines)
+                        network_distance, network_with_min_distance = topology_analyzer.find_best_matching_network(network_topology_info)
+
+
+
+    def build_mv_energy_system2(self, mv_network : EnergySystem) -> EnergySystemOutput:
         if len(mv_network.instance) == 1:
             assets = mv_network.instance[0].area.asset
             transfomers : List[esdl.Transformer] = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
