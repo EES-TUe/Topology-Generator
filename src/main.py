@@ -35,23 +35,23 @@ def main():
     # y_top_right = 552992
 
     # Full network
-    for file in os.listdir("C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned"):
-        filename = os.fsdecode(file)
-        if filename.startswith("Enexis"): 
-            esdl_parser = EsdlNetworkParser(esdl_path=f"C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned/{filename}")
-            # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
-            full_network_plotter = NetworkPlotter(1,1)
-            full_network_plotter.plot_network(esdl_parser.all_lv_lines)
-            full_network_plotter.show_plot()
-            esdl_network_builder = LvNetworkBuilder(esdl_parser)
-            networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
-            for network_to_match_against in networks_to_match_against:
-                # amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
-                # LOGGER.info(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
-                network_plotter = NetworkPlotter(2,1)
-                network_plotter.plot_network(network_to_match_against.network_lines)
-                network_plotter.plot_network_topology(network_to_match_against.network_topology)
-                network_plotter.show_plot()
+    # for file in os.listdir("C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned"):
+    #     filename = os.fsdecode(file)
+    #     if filename.startswith("Enexis"): 
+    #         esdl_parser = EsdlNetworkParser(esdl_path=f"C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned/{filename}")
+    #         # topology_analyzer = TopologyAnalyzer(networks_to_match_against)
+    #         full_network_plotter = NetworkPlotter(1,1)
+    #         full_network_plotter.plot_network(esdl_parser.all_lv_lines)
+    #         full_network_plotter.show_plot()
+    #         esdl_network_builder = LvNetworkBuilder(esdl_parser)
+    #         networks_to_match_against = esdl_network_builder.extract_network_and_topologies()
+    #         for network_to_match_against in networks_to_match_against:
+    #             # amount_of_connections_network_to_match = sum([edge[1]["amount_of_connections"] for edge in network_to_match_against.network_topology.edges.items()])
+    #             # LOGGER.info(f"Amount of connections in nework: {amount_of_connections_network_to_match}")
+    #             network_plotter = NetworkPlotter(2,1)
+    #             network_plotter.plot_network(network_to_match_against.network_lines)
+    #             network_plotter.plot_network_topology(network_to_match_against.network_topology)
+    #             network_plotter.show_plot()
 
 
     bbox = (x_bottom_left, y_bottom_left, x_top_right, y_top_right)
