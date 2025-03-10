@@ -54,11 +54,10 @@ class MvEnergySystemBuilder:
 
 
     def compute_line_to_closest_line(self, building : Polygon, point : Point, closest_line : NavigationLineString) -> LineString:
-        closest_line_index = 0
         line_connected_to_end_feeder : LineString = None
         shortest_line_connected_to_end_feeder : LineString = LineString([Point(0,0), Point(1000000000,0)])
 
-        while closest_line_index < len(closest_line.line_string.coords) - 1:
+        for closest_line_index in range(0, len(closest_line.line_string.coords) - 1):
             point_a = closest_line.line_string.coords[closest_line_index]
             point_b = closest_line.line_string.coords[closest_line_index+1]
             if point_a[0] > point_b[0]:
@@ -85,8 +84,6 @@ class MvEnergySystemBuilder:
                 line_connected_to_end_feeder = LineString([Point(point_b), point])
             if line_connected_to_end_feeder.length < shortest_line_connected_to_end_feeder.length:
                 shortest_line_connected_to_end_feeder = line_connected_to_end_feeder
-            closest_line_index += 1
-
         return shortest_line_connected_to_end_feeder
 
 
@@ -135,7 +132,7 @@ class MvEnergySystemBuilder:
                     cable_to_home.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
                     cable_to_home.geometry = esdl.Line()
                     cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1], CRS="WGS84"))
-                    cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[1][1], CRS="WGS84"))
+                    cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[0][1], CRS="WGS84"))
                     esdl_building.asset[-1].port[0].connectedTo.append(cable_to_home.port[1])
                     cable_to_home.port[1].connectedTo.append(esdl_building.asset[-1].port[0])
 
@@ -165,6 +162,7 @@ class MvEnergySystemBuilder:
         lines_to_home_inputs = self.generate_lines_connected_to_homes(network_topology_info)
         lv_assets = []
         last_joint = start_joint
+        point_last_added_joint = (start_joint.geometry.lat, start_joint.geometry.lon)
         r_tree_lines = STRtree(network_topology_info.network_lines)
         starting_line_new_r_tree = network_topology_info.starting_line
         start_point = GeometryHelperFunctions.get_connected_coords(starting_line_new_r_tree)
@@ -172,9 +170,11 @@ class MvEnergySystemBuilder:
         starting_line_new_r_tree.index = start_line_index[0]
         next_lines = [starting_line_new_r_tree]
         while next_lines != []:
+            last_nav_line_string = None
             for nav_line_string in next_lines:
-                line_string = nav_line_string.line_string
+                last_nav_line_string = nav_line_string
                 points_for_cable = []
+                added_lines_to_home = False
                 reversed_iteration = -1 if nav_line_string.first_point_end else 1
                 for i in range(0, len(nav_line_string.line_string.coords) - 1):
                     i_start = i
@@ -182,49 +182,55 @@ class MvEnergySystemBuilder:
                     if reversed_iteration == -1:
                         i_start = reversed_iteration * (i + 1)
                         i_end = reversed_iteration * (i + 2)
-                    point_a = nav_line_string.line_string.coords[i_start]
+                    point_a = point_last_added_joint if added_lines_to_home else nav_line_string.line_string.coords[i_start]
+                    added_lines_to_home = False
                     points_for_cable.append(point_a)
                     point_b = nav_line_string.line_string.coords[i_end]
+                    line_string = LineString([Point(point_a), Point(point_b)])
                     line_to_home_input_intersects = next((line_to_home_input for line_to_home_input in lines_to_home_inputs if intersects(line_to_home_input.line, line_string)), None)
                     while line_to_home_input_intersects != None:
                         lines_to_home_inputs.remove(line_to_home_input_intersects)
                         point_for_joint = line_to_home_input_intersects.line.coords[0]
+                        intersection_point = intersection(line_string, line_to_home_input_intersects.line)
                         if point_for_joint != (last_joint.geometry.lat, last_joint.geometry.lon):
-                            new_cable, new_joint = self.generate_cable_and_joint(points_for_cable, line_to_home_input_intersects)
-                            new_cable.port[0].connectedTo.append(last_joint.port[1])
-                            last_joint.port[1].connectedTo.append(new_cable.port[0])
-                            last_joint = new_joint
-                            lv_assets.append(new_cable)
-                            lv_assets.append(new_joint)
-                            self.plot_intermediate_result(lv_assets)
-    
-                        line_to_home_input_intersects.cable_to_home.port[0].connectedTo.append(new_joint.port[1])
-                        new_joint.port[1].connectedTo.append(line_to_home_input_intersects.cable_to_home.port[0])
-                        points_for_cable = [line_to_home_input_intersects.line.coords[0]]
+                            last_joint = self.generate_cable_and_joint(points_for_cable, (intersection_point.x, intersection_point.y), last_joint, lv_assets)
+                            point_last_added_joint = (intersection_point.x, intersection_point.y)
+                            added_lines_to_home = True
+                        line_to_home_input_intersects.cable_to_home.port[0].connectedTo.append(last_joint.port[1])
+                        last_joint.port[1].connectedTo.append(line_to_home_input_intersects.cable_to_home.port[0])
+                        points_for_cable.clear()
                         lv_assets.append(line_to_home_input_intersects.cable_to_home)
                         lv_assets.append(line_to_home_input_intersects.house)
                         line_to_home_input_intersects = next((line_to_home_input for line_to_home_input in lines_to_home_inputs if intersects(line_to_home_input.line, line_string)), None)
-                    points_for_cable.append(point_b)
-            next_lines = GeometryHelperFunctions.get_next_lines(r_tree_lines, network_topology_info.starting_line)
+                        self.plot_intermediate_result(lv_assets)
+
+                    if i == len(nav_line_string.line_string.coords) - 2 and point_last_added_joint != point_b:
+                        last_joint = self.generate_cable_and_joint(points_for_cable, point_b, last_joint, lv_assets)
+                        self.plot_intermediate_result(lv_assets)
+
+            next_lines = GeometryHelperFunctions.get_next_lines(r_tree_lines, last_nav_line_string)
         return lv_assets
 
 
-    def generate_cable_and_joint(self, points_for_cable : List[tuple[float, float]], line_to_home_input_intersects : LineToHomeInput) -> tuple[esdl.ElectricityCable, esdl.Joint]:
+    def generate_cable_and_joint(self, points_for_cable : List[tuple[float, float]], intersection_point : tuple[float, float], last_joint : esdl.Joint, lv_assets : List[esdl.ConnectableAsset]) -> tuple[esdl.ElectricityCable, esdl.Joint]:
         part_cable = esdl.ElectricityCable(name="cable")
         part_cable.geometry = esdl.Line()
         for point in points_for_cable:
             part_cable.geometry.point.append(esdl.Point(lat=point[0], lon=point[1], CRS="WGS84"))
-        part_cable.geometry.point.append(esdl.Point(lat=line_to_home_input_intersects.line.coords[0][0], lon=line_to_home_input_intersects.line.coords[0][1], CRS="WGS84"))
+        part_cable.geometry.point.append(esdl.Point(lat=intersection_point[0], lon=intersection_point[1], CRS="WGS84"))
         new_joint = esdl.Joint(id=str(uuid.uuid4()), name="joint")
         new_joint.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         new_joint.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
-        new_joint.geometry = esdl.Point(lat=line_to_home_input_intersects.line.coords[0][0], lon=line_to_home_input_intersects.line.coords[0][1], CRS="WGS84")
+        new_joint.geometry = esdl.Point(lat=points_for_cable[-1][0], lon=points_for_cable[-1][1], CRS="WGS84")
         part_cable.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         part_cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         part_cable.port[1].connectedTo.append(new_joint.port[0])
         new_joint.port[0].connectedTo.append(part_cable.port[1])
-        return part_cable, new_joint
-
+        part_cable.port[0].connectedTo.append(last_joint.port[1])
+        last_joint.port[1].connectedTo.append(part_cable.port[0])
+        lv_assets.append(part_cable)
+        lv_assets.append(new_joint)
+        return new_joint
 
 
     def build_mv_energy_system(self, mv_network : EnergySystem) -> EnergySystemOutput:
@@ -242,7 +248,7 @@ class MvEnergySystemBuilder:
                 network_collections = self.archetype_network_mapping[archetype]
                 for i, network_collection in enumerate(network_collections):
                     topology_analyzer = TopologyAnalyzer(network_collection)
-                    for network_topology_info in network_topology_infos:
+                    for network_topology_info in network_topology_infos[1:2]:
                         lv_lines_to_vizualize.extend(network_topology_info.network_lines)
                         network_distance, network_with_min_distance = topology_analyzer.find_best_matching_network(network_topology_info)
                         lv_assets = self.generate_lv_esdl(network_topology_info, network_with_min_distance, transfomer.port[1].connectedTo[0].eContainer())
