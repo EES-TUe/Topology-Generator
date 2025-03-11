@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 from shapely import STRtree, Point
 import networkx as nx
+from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions, NavigationLineString
 from Topology_Generator.NetworkParser import NetworkParser
 
@@ -11,6 +12,7 @@ from Topology_Generator.dataclasses import EdgeLabel, NetworkTopologyInfo
 class LvNetworkBuilder:
     def __init__(self, parser : NetworkParser):
         self.str_tree_lines : STRtree = parser.str_tree_lv_lines
+        self.filter_lv_lines_connected_to_mv_lines = isinstance(parser, EsdlNetworkParser)
         self.parser = parser
 
     def _add_node_and_edge(self, network_graph : nx.Graph, from_node : int, last_added_node : int, edge_label : EdgeLabel) -> int:
@@ -30,8 +32,11 @@ class LvNetworkBuilder:
     def get_next_lines_lv_network(self, next_line_string_end_pair : NavigationLineString) -> List[NavigationLineString]:
         new_lines = GeometryHelperFunctions.get_next_lines(self.str_tree_lines, next_line_string_end_pair)
         point_of_potential_lv_mv_station = next_line_string_end_pair.line_string.coords[0] if next_line_string_end_pair.first_point_end else next_line_string_end_pair.line_string.coords[-1]
-        lines_connected_to_transformer = self.parser.extract_lv_lines_connected_to_mv_lv_station_at_point(Point(point_of_potential_lv_mv_station))
-        return [new_line for new_line in new_lines if new_line not in lines_connected_to_transformer]
+        ret_val = new_lines
+        if self.filter_lv_lines_connected_to_mv_lines:
+            lines_connected_to_transformer = self.parser.extract_lv_lines_connected_to_mv_lv_station_at_point(Point(point_of_potential_lv_mv_station))
+            ret_val = [new_line for new_line in new_lines if new_line not in lines_connected_to_transformer]
+        return ret_val
 
     def _build_lv_network_recursive(self, network_graph : nx.Graph, navigation_line_string : NavigationLineString, last_added_node : int, from_node : int, visited_lines : List[NavigationLineString], loops_mapping : dict[Tuple[float, float], int]) -> int:
         if not any(visited_line.index == navigation_line_string.index for visited_line in visited_lines):

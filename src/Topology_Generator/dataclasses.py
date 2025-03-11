@@ -46,3 +46,8 @@ class LineToHomeInput:
     line : LineString
     house : esdl.Building
     cable_to_home : esdl.ElectricityCable
+
+@dataclass
+class PerpendicularLineSegments:
+    line_to_building : LineString
+    line_from_building : LineString
