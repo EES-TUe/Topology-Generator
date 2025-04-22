@@ -112,9 +112,16 @@ class MvEnergySystemBuilder:
         e_connection.geometry = building_point
         e_connection.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         for i in range(0, 3):
-            e_connection.port.append(esdl.OutPort(id=str(uuid.uuid4()), name=f"OutPh{i+1}"))
+
             electricity_network = esdl.ElectricityNetwork(name=f"ph{i+1}")
-            electricity_network.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+            in_port_electricity_network = esdl.InPort(id=str(uuid.uuid4()), name="In")
+            out_port_econnection = esdl.OutPort(id=str(uuid.uuid4()), name=f"OutPh{i+1}")
+
+            in_port_electricity_network.connectedTo.append(out_port_econnection)
+            out_port_econnection.connectedTo.append(in_port_electricity_network)
+
+            e_connection.port.append(out_port_econnection)
+            electricity_network.port.append(in_port_electricity_network)
             electricity_network.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
             electricity_network.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="In"))
             building.asset.append(electricity_network)
@@ -129,7 +136,7 @@ class MvEnergySystemBuilder:
             associated_lines = edge[1]["line_strings"] 
             ret_val : List[LineToHomeInput] = []
             for building in buildings_bordering_edge:
-                
+
                 coord_index = 0
                 potential_lines_to_home = []
                 while coord_index < len(building.boundary.coords):
@@ -157,10 +164,10 @@ class MvEnergySystemBuilder:
                     ret_val.append(new_line_input)
                     LOGGER.info(f"Added line to home with length: {ret_val[-1].line.length}")
 
-        test_plotter = NetworkPlotter(1,1)
-        line_string_to_homes = [line_to_home_input.line for line_to_home_input in ret_val]
-        test_plotter.plot_network_with_buildings(network_topology_info.network_lines + line_string_to_homes, buildings_bordering_edge, True)
-        test_plotter.show_plot()
+        # test_plotter = NetworkPlotter(1,1)
+        # line_string_to_homes = [line_to_home_input.line for line_to_home_input in ret_val]
+        # test_plotter.plot_network_with_buildings(network_topology_info.network_lines + line_string_to_homes, buildings_bordering_edge, True)
+        # test_plotter.show_plot()
         return ret_val
     
 
@@ -224,7 +231,7 @@ class MvEnergySystemBuilder:
 
             next_lines = GeometryHelperFunctions.get_next_lines(r_tree_lines, last_nav_line_string)
 
-        self.plot_intermediate_result(lv_assets)
+        # self.plot_intermediate_result(lv_assets)
         return lv_assets
 
 
@@ -249,7 +256,7 @@ class MvEnergySystemBuilder:
         return new_joint
 
 
-    def build_mv_energy_system(self, mv_network : EnergySystem) -> EnergySystemOutput:
+    def build_mv_energy_system(self, mv_network : EnergySystem):
         assets = mv_network.instance[0].area.asset
         transfomers : List[esdl.Transformer] = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
 
@@ -266,8 +273,11 @@ class MvEnergySystemBuilder:
                     topology_analyzer = TopologyAnalyzer(network_collection)
                     for network_topology_info in network_topology_infos:
                         lv_lines_to_vizualize.extend(network_topology_info.network_lines)
-                        network_distance, network_with_min_distance = topology_analyzer.find_best_matching_network(network_topology_info)
+                        # network_distance, network_with_min_distance = topology_analyzer.find_best_matching_network(network_topology_info)
                         lv_assets = self.generate_lv_esdl(network_topology_info, transfomer.port[1].connectedTo[0].eContainer())
+                        EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
+        self.plot_intermediate_result(mv_network.instance[0].area.asset)
+        return mv_network
 
 
 
