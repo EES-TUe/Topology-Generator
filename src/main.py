@@ -8,10 +8,8 @@ from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchet
 from Topology_Generator.AllianderGeoDataNetworkParser import AllianderGeoDataNetworkParser
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
+from esdl.esdl_handler import EnergySystemHandler
 import geopandas
-
-from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import NetworkTopologyInfo
 
 def normalize(arr, t_min, t_max):
     norm_arr = []
@@ -25,10 +23,10 @@ def normalize(arr, t_min, t_max):
 
 def main():
 
-    x_bottom_left = 157384
-    y_bottom_left = 432937
-    x_top_right = 159319
-    y_top_right = 434915
+    x_bottom_left = 177415
+    y_bottom_left = 550915
+    x_top_right = 189559
+    y_top_right = 560091
     # x_bottom_left = 187180
     # y_bottom_left = 548389
     # x_top_right = 18536
@@ -118,11 +116,14 @@ def main():
         ]
     }
     # mv_network = None
-    mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
-    mv_network_builder.plot_mv_network(mv_network)
+    for i in range(0, 10):
+        mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
+        mv_network_builder.plot_mv_network(mv_network)
 
     bla = MvEnergySystemBuilder(lv_network_builder, archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
     bla.build_mv_energy_system(mv_network)
+    esh = EnergySystemHandler(mv_network)
+    esh.save("mv-energy-system.esdl")
     # for i in range(0,2):
     #     energy_system_output = bla.build_mv_energy_system(mv_network)
     #     esh = EnergySystemHandler(energy_system_output.energy_system)

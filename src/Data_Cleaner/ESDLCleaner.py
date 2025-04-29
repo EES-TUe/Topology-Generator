@@ -67,7 +67,7 @@ def main():
 
     df = pd.DataFrame(data)
     df.to_csv("CableTypes.csv")
-    
+
 
 
 if __name__ == "__main__":
