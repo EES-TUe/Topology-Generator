@@ -6,6 +6,7 @@ from shapely import STRtree, dwithin, Point, distance, touches
 import geopandas
 import numpy as np
 
+from Topology_Generator.Logging import LOGGER
 from Topology_Generator.NetworkParser import StationStartingLinesContainer
 from Topology_Generator.dataclasses import NavigationLineString
 
@@ -97,7 +98,15 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
     def extract_lines_connected_to_stations_include_one_side_connected(self, station_geo_df : geopandas.GeoDataFrame, str_tree_lines : STRtree, touch_margin : float) -> List[StationStartingLinesContainer]:
         ret_val = []
         for station in station_geo_df.geometry:
-            lines_intersecting_with_station = self.extract_lines_connected_to_2d_entity_one_side_connected(str_tree_lines, touch_margin, station)
+            lines_intersecting_with_station = []
+
+            i = 0
+            while lines_intersecting_with_station == [] and i < 5:
+                touch_margin_to_check = touch_margin + i * 50.0
+                LOGGER.debug(f"Trying to find lines connected to station {station} with touch margin {touch_margin_to_check}")
+                lines_intersecting_with_station = self.extract_lines_connected_to_2d_entity_one_side_connected(str_tree_lines, touch_margin_to_check, station)
+                i += 1
+
             building_year = self.get_building_year_of_building_at_point(station)
             ret_val.append(StationStartingLinesContainer(lines_intersecting_with_station, building_year))
         return ret_val
@@ -115,7 +124,7 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
         return []
 
     def extract_mv_lines_that_are_connected_at_point(self, point : Point):
-        ret_val = self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, 1.0, point)
+        ret_val = self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, 3.0, point)
         return ret_val
 
     def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:

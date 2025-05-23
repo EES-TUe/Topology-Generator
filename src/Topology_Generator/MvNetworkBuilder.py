@@ -247,6 +247,7 @@ class MvNetworkBuilder:
         if len(self.starting_lines_containers) == 0:
             self.starting_lines_containers = self.parser.extract_mv_lines_connected_to_hv_mv_station()
 
+        LOGGER.debug(f"Extracting starting lines at index: {self.starting_lines_container_index}/{len(self.starting_lines_containers)}")
         starting_line_container = self.starting_lines_containers[self.starting_lines_container_index]
 
         starting_line = starting_line_container.starting_lines[self.starting_line_index]
