@@ -23,10 +23,10 @@ def normalize(arr, t_min, t_max):
 
 def main():
 
-    x_bottom_left = 184034
-    y_bottom_left = 426372
-    x_top_right = 192765
-    y_top_right = 431462
+    x_bottom_left = 157384
+    y_bottom_left = 432937
+    x_top_right = 159319
+    y_top_right = 434915
     # x_bottom_left = 187180
     # y_bottom_left = 548389
     # x_top_right = 18536
