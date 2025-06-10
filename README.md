@@ -8,9 +8,9 @@ First, the algorithm assumes that MV networks are in a ring configuration. Secon
 
 A full and detailed description of the algorithm can be found in the following paper:
 ```
-@INPROCEEDINGS{mvtool,
+@INPROCEEDINGS{vanSchooten2025,
   author={van Schooten, Leo and Verhoeven, Gijs and Kok, Koen and Morren, Johan },
-  booktitle={28th International Conference on Electricity Distribution (CIRED 2025) \textit{ACCEPTED}}, 
+  booktitle={28th International Conference on Electricity Distribution (CIRED 2025)}, 
   title={An open-source tool for generating representative dutch distribution grid models using graph similarity measures and open data}, 
   year={2025}}
 ```
