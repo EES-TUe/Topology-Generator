@@ -1,37 +1,36 @@
 
-from Topology_Generator.LvNetworkPlotter import LvNetworkPlotter
-from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
+from Topology_Generator.AllianderGeoDataNetworkParser import AllianderGeoDataNetworkParser
+from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
+from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
 import geopandas
 
 def main():
-    # Full network
-    x_bottom_left = 233256
-    y_bottom_left = 583730
-    x_top_right = 233701
-    y_top_right = 583956
+
+    x_bottom_left = 157384
+    y_bottom_left = 432937
+    x_top_right = 159319
+    y_top_right = 434915
     bbox = (x_bottom_left, y_bottom_left, x_top_right, y_top_right)
 
-    lv_lines_shape_file = "C://Users//20180029//repos//Topology-Generator//ENEXIS_Elektra_shape//Enexis_e_ls_verbinding//nbnl_e_ls_verbinding.shp"
-    lv_mv_lines_shape_file = "C://Users//20180029//repos//Topology-Generator//ENEXIS_Elektra_shape//Enexis_e_ms_ls_station//nbnl_e_ms_ls_station.shp"
+    # Bag data
+    bag_data_gpkg = "C:/Users/20180029/datasets/bag-light.gpkg"
+    geo_df_bag_data : geopandas.GeoDataFrame = geopandas.read_file(bag_data_gpkg, layer='pand', bbox=bbox)
 
-    geo_df_lv_lines : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_shape_file, bbox=bbox)
-    print(geo_df_lv_lines)
-    geo_df_mv_lv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_mv_lines_shape_file, bbox=bbox)
+    # Alliander
+    lv_lines_gpkg = "C:/Users/20180029/datasets/Topologie_archetype_data/alliander/liander_elektriciteitsnetten.gpkg"
+    geo_df_lv_lines : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='laagspanningskabels', bbox=bbox)
+    geo_df_mv_lv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='middenspanningsinstallaties', bbox=bbox)
+    geo_df_mv_kabels : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='middenspanningskabels', bbox=bbox)
+    geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='onderstations', bbox=bbox)
+    generator_cable_case = GeneratorCableCase.THICK
+    network_parser = AllianderGeoDataNetworkParser(geo_df_lv_lines, geo_df_mv_lv_stations, geo_df_bag_data, geo_df_mv_kabels, geo_df_hv_stations, generator_cable_case)
+    
+    mv_network_builder = MvNetworkBuilder(network_parser, x_bottom_left, y_bottom_left, x_top_right, y_top_right)
 
-    network_builder = LvNetworkBuilder(geo_df_lv_lines, geo_df_mv_lv_stations)
-    starting_points = network_builder.extract_lv_lines_connected_to_mv_lv_station()
-    lv_network = network_builder.build_lv_network(starting_points[0].starting_lines[0])
-    lv_network2 = network_builder.build_lv_network(starting_points[1].starting_lines[0])
-
-    lv_network_topology = network_builder.compute_lv_network_topology_from_lv_mv_station(starting_points[0].starting_lines[0])
-    lv_network_topology2 = network_builder.compute_lv_network_topology_from_lv_mv_station(starting_points[1].starting_lines[0])
-
-    network_plotter = LvNetworkPlotter(2,2)
-    network_plotter.plot_lv_network(lv_network, starting_points[0].lv_mv_station)
-    network_plotter.plot_lv_network(lv_network2, starting_points[1].lv_mv_station)
-    network_plotter.plot_network_topology(lv_network_topology)
-    network_plotter.plot_network_topology(lv_network_topology2)
-    network_plotter.show_plot()
+    mv_network = None
+    for i in range(0,5):
+        mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
+        mv_network_builder.plot_mv_network(mv_network)
 
 if __name__ == "__main__":
     exit(main())
