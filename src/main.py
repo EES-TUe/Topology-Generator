@@ -82,45 +82,12 @@ def main():
     # network_parser = EnexisGeoDataNetworkParser(geo_df_lv_lines, geo_df_mv_lv_stations)
     
     mv_network_builder = MvNetworkBuilder(network_parser, x_bottom_left, y_bottom_left, x_top_right, y_top_right)
-    archetype_dict = {
-        1 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch1_Net1_BU02680203_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch1_Net2_BU02680204_2030.esdl"
-        ],
-        2 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net1_BU03633702_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch2_Net2_BU02680202_2030.esdl"
-        ],
-        3 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch3_Net1_BU03611003_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch3_Net2_BU02810100_2030.esdl"
-        ],
-        4 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch4_Net1_BU04020505_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch4_Net2_BU04791210_2030.esdl"
-        ],
-        5 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch5_Net1_BU02000506_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch5_Net2_BU04530302_2030.esdl"
-        ],
-        6 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch6_Net1_BU19403001_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch6_Net2_BU19403201_2030.esdl"
-        ],
-        7 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch7_Net1_BU04320101_2030.esdl",
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch7_Net2_BU03940675_2030.esdl"
-        ],
-        8 : [
-            "C:/Users/20180029/repos/Topology-Generator/Archetypes/Alliander_Arch8_Net1_BU02890802_2030.esdl"
-        ]
-    }
     # mv_network = None
-    for i in range(0, 10):
+    for i in range(0, 1):
         mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
         mv_network_builder.plot_mv_network(mv_network)
 
-    bla = MvEnergySystemBuilder(lv_network_builder, archetype_dict, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
+    bla = MvEnergySystemBuilder(lv_network_builder, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
     bla.build_mv_energy_system(mv_network)
     esh = EnergySystemHandler(mv_network)
     esh.save("mv-energy-system.esdl")
