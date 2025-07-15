@@ -9,6 +9,7 @@ from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.dataclasses import EnergySystemOutput, EsdlNetworkTopology, LineToHomeInput, NavigationLineString, NetworkTopologyInfo, PerpendicularLineSegments
 from typing import List
 from shapely import Point, LineString, distance, Polygon, intersection, STRtree, dwithin
+from shapely.ops import nearest_points
 from Topology_Generator.Logging import LOGGER
 from Topology_Generator.TopologyAnalyzer import TopologyAnalyzer
 
@@ -16,6 +17,7 @@ class MvEnergySystemBuilder:
     def __init__(self, lv_network_builder : LvNetworkBuilder, archetype_handler : NeighbourhoodArchetypeHandler):
         self.archetype_handler = archetype_handler
         self.lv_network_builder = lv_network_builder
+
 
     def remove_joints_connected_to_transformer(self, best_match : List[esdl.ConnectableAsset]):
         new_joints = EsdlHelperFunctions.get_all_esdl_objects_from_type(best_match.network_assets, esdl.Joint)
@@ -29,30 +31,6 @@ class MvEnergySystemBuilder:
                             to_remove.append(joint)
         for value in to_remove:
             best_match.network_assets.remove(value)
-
-
-    def compunte_perpendicular_line_segments(self, point : Point, point_a : tuple[float, float], point_b : tuple[float, float]) -> PerpendicularLineSegments:
-        slope = 0
-        if (point_a[0] != point_b[0]):
-            slope = (point_b[1] - point_a[1]) / (point_b[0] - point_a[0])
-
-        slope_perpidicular = 0
-        if slope != 0:
-            slope_perpidicular = -1 * (1 / slope)
-
-        TOUCH_MARGIN = 15
-        if slope_perpidicular != 0:
-            b = point.y - slope_perpidicular * point.x
-            line_segment_perpidicular_to_building = LineString([(point.x - TOUCH_MARGIN, slope_perpidicular * (point.x - TOUCH_MARGIN) + b), (point.x, point.y)])
-            line_segment_perpidicular_from_building = LineString([(point.x, point.y), (point.x + TOUCH_MARGIN, slope_perpidicular * (point.x + TOUCH_MARGIN) + b)])
-        elif slope == 0: # no increase in the x direction
-            line_segment_perpidicular_to_building = LineString([(point.x - TOUCH_MARGIN, point.y ), (point.x, point.y)])
-            line_segment_perpidicular_from_building = LineString([(point.x, point.y), (point.x + TOUCH_MARGIN, point.y)])
-        elif slope_perpidicular == 0: # no increase in the y direction
-            line_segment_perpidicular_to_building = LineString([(point.x, point.y - TOUCH_MARGIN), (point.x, point.y)])
-            line_segment_perpidicular_from_building = LineString([(point.x, point.y), (point.x, point.y + TOUCH_MARGIN)])
-    
-        return PerpendicularLineSegments(line_segment_perpidicular_to_building, line_segment_perpidicular_from_building)
 
 
     def compute_line_to_closest_line(self, building : Polygon, point : Point, closest_line : NavigationLineString) -> LineString:
@@ -107,51 +85,38 @@ class MvEnergySystemBuilder:
             building.asset.append(electricity_network)
         building.asset.append(e_connection)
         return building
-
-
-    def generate_lines_connected_to_homes(self, network_topology_info : NetworkTopologyInfo) -> List[LineToHomeInput]:
-        LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
-        for edge in network_topology_info.network_topology.edges.items():
-            buildings_bordering_edge = edge[1]["houses"] 
-            associated_lines = edge[1]["line_strings"] 
-            ret_val : List[LineToHomeInput] = []
-            for building in buildings_bordering_edge:
-
-                coord_index = 0
-                potential_lines_to_home = []
-                while coord_index < len(building.boundary.coords):
-                    coord = building.boundary.coords[coord_index]
-                    point = Point(coord)
-                    closest_line = min(associated_lines, key=lambda line, point = point: distance(line.line_string, point))
-                    line_to_closest_line = self.compute_line_to_closest_line(building, point, closest_line)
-                    potential_lines_to_home.append(line_to_closest_line)
-                    coord_index += 1
-
-                if len(potential_lines_to_home) > 0:
-                    new_linestring_to_home = min(potential_lines_to_home, key=lambda line: line.length)
-                    esdl_building = self.generate_esdl_home(new_linestring_to_home.coords[-1])
-
-                    cable_to_home = esdl.ElectricityCable(name="cabletohome")
-                    cable_to_home.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
-                    cable_to_home.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
-                    cable_to_home.geometry = esdl.Line()
-                    cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1], CRS="WGS84"))
-                    cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[0][1], CRS="WGS84"))
-                    esdl_building.asset[-1].port[0].connectedTo.append(cable_to_home.port[1])
-                    cable_to_home.port[1].connectedTo.append(esdl_building.asset[-1].port[0])
-
-                    new_line_input = LineToHomeInput(new_linestring_to_home, esdl_building, cable_to_home)
-                    ret_val.append(new_line_input)
-                    LOGGER.info(f"Added line to home with length: {ret_val[-1].line.length}")
-
-        # test_plotter = NetworkPlotter(1,1)
-        # line_string_to_homes = [line_to_home_input.line for line_to_home_input in ret_val]
-        # test_plotter.plot_network_with_buildings(network_topology_info.network_lines + line_string_to_homes, buildings_bordering_edge, True)
-        # test_plotter.show_plot()
-        return ret_val
     
 
-    def list_of_points_to_linestring(self, points) -> LineString:
+    def generate_lines_connected_to_homes(self, network_topology_info : NetworkTopologyInfo) -> List[LineToHomeInput]:
+        ret_val = []
+        LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
+        lv_network_r_tree = STRtree(network_topology_info.network_lines)
+        lv_network_all_buildings = EsdlHelperFunctions.flatten_list_of_lists([edge[1]["houses"] for edge in network_topology_info.network_topology.edges.items()])
+        for building_entity in lv_network_all_buildings:
+            building = building_entity.geometry.iloc[0]
+            closest_line_index = lv_network_r_tree.nearest(building_entity.geometry)
+            closest_line = lv_network_r_tree.geometries.take(closest_line_index)
+            point_on_building, point_on_line = nearest_points(building, closest_line)
+            new_linestring_to_home = LineString([point_on_line[0], point_on_building[0]])
+            esdl_building = self.generate_esdl_home(new_linestring_to_home.coords[-1])
+
+            cable_to_home = esdl.ElectricityCable(name="lvcabletohome")
+            cable_to_home.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+            cable_to_home.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
+            cable_to_home.geometry = esdl.Line()
+            cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1], CRS="WGS84"))
+            cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[0][1], CRS="WGS84"))
+            esdl_building.asset[-1].port[0].connectedTo.append(cable_to_home.port[1])
+            cable_to_home.port[1].connectedTo.append(esdl_building.asset[-1].port[0])
+
+            new_line_input = LineToHomeInput(new_linestring_to_home, esdl_building, cable_to_home)
+            ret_val.append(new_line_input)
+            LOGGER.info(f"Added line to home with length: {ret_val[-1].line.length}")
+
+        return ret_val
+
+
+    def list_of_points_to_linestring(self, points : esdl.Point) -> LineString:
         return LineString([(point.lat, point.lon) for point in points])
 
 
@@ -160,6 +125,20 @@ class MvEnergySystemBuilder:
         test_plotter = NetworkPlotter(1,1)
         test_plotter.plot_network(line_strings)
         test_plotter.show_plot()
+
+
+    def plot_mv_and_lv_network(self, assets_to_plot : List[esdl.ConnectableAsset]):
+        lv_line_strings = []
+        mv_line_strings = []
+        for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(assets_to_plot, esdl.ElectricityCable):
+            if "lv" in cable.name.lower():
+                lv_line_strings.append(self.list_of_points_to_linestring(cable.geometry.point))
+            else:
+                mv_line_strings.append(self.list_of_points_to_linestring(cable.geometry.point))
+        network_plotter = NetworkPlotter(1,1)
+        network_plotter.plot_mv_network_with_lv_network(mv_line_strings, lv_line_strings, mv_network_color="blue", lv_network_color="red")
+        network_plotter.show_plot()
+
 
 
     def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, start_joint : esdl.Joint) -> esdl.EnergySystem:
@@ -216,7 +195,7 @@ class MvEnergySystemBuilder:
 
 
     def generate_cable_and_joint(self, points_for_cable : List[tuple[float, float]], intersection_point : tuple[float, float], last_joint : esdl.Joint, lv_assets : List[esdl.ConnectableAsset]) -> tuple[esdl.ElectricityCable, esdl.Joint]:
-        part_cable = esdl.ElectricityCable(name="cable")
+        part_cable = esdl.ElectricityCable(name="lvcable")
         part_cable.geometry = esdl.Line()
         for point in points_for_cable:
             part_cable.geometry.point.append(esdl.Point(lat=point[0], lon=point[1], CRS="WGS84"))
@@ -234,6 +213,18 @@ class MvEnergySystemBuilder:
         lv_assets.append(part_cable)
         lv_assets.append(new_joint)
         return new_joint
+    
+
+    def print_network_statistics(self, mv_network : EnergySystem):
+        assets = mv_network.instance[0].area.asset
+        cables = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.ElectricityCable)
+        joints = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Joint)
+        transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
+        connections = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.EConnection)
+        LOGGER.info(f"Number of cables: {len(cables)}")
+        LOGGER.info(f"Number of joints: {len(joints)}")
+        LOGGER.info(f"Number of transformers: {len(transformers)}")
+        LOGGER.info(f"Number of connections: {len(connections)}")
 
 
     def build_mv_energy_system(self, mv_network : EnergySystem):
@@ -253,5 +244,6 @@ class MvEnergySystemBuilder:
                     # network_distance, network_with_min_distance = topology_analyzer.find_best_matching_network(network_topology_info)
                     lv_assets = self.generate_lv_esdl(network_topology_info, transfomer.port[1].connectedTo[0].eContainer())
                     EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
-        self.plot_intermediate_result(mv_network.instance[0].area.asset)
+        self.plot_mv_and_lv_network(mv_network.instance[0].area.asset)
+
         return mv_network
