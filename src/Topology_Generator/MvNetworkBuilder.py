@@ -58,7 +58,7 @@ class MvNetworkBuilder:
         return transformer
     
     def _generate_esdl_cable(self, navigation_line_string : NavigationLineString) -> esdl.ElectricityCable:
-        cable = esdl.ElectricityCable(id=str(uuid.uuid4()), length=navigation_line_string.line_string.length, name=f"Cable{navigation_line_string.index}", assetType="testtype")
+        cable = esdl.ElectricityCable(id=str(uuid.uuid4()), length=navigation_line_string.line_string.length, name=f"MV_Cable{navigation_line_string.index}", assetType="testtype")
         esdl_line = esdl.Line()
         for p in navigation_line_string.line_string.coords:
             esdl_line.point.append(esdl.Point(lat=p[0], lon=p[1], CRS="WGS84"))

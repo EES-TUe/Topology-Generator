@@ -53,7 +53,7 @@ class GeoDataNetworkParser(NetworkParser):
 
             for index in new_connections:
                 building = self.geo_df_bag_data.take([index])
-                ret_val.append(building.geometry.iloc[0])
+                ret_val.append(building)
         return ret_val
 
     def is_there_industry_at_point(self, point : Point) -> bool:

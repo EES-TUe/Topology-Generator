@@ -9,6 +9,6 @@ logging.basicConfig(
 )
 # Create a logger instance
 LOGGER = logging.getLogger("Topology_Generator")
-LOGGER.setLevel(logging.DEBUG)
+LOGGER.setLevel(logging.INFO)
 
 
