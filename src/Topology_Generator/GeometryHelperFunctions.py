@@ -50,6 +50,8 @@ class GeometryHelperFunctions:
     @staticmethod
     def get_next_lines(str_tree_lines : STRtree, navigation_line_string : NavigationLineString) -> List[NavigationLineString]:
         point_to_connect_to = Point(navigation_line_string.line_string.coords[0]) if navigation_line_string.first_point_end else Point(navigation_line_string.line_string.coords[-1])
+        if 157808 < point_to_connect_to.x < 157810 and 434258 < point_to_connect_to.y < 434260:
+            bla = 5
         intersecting_indices = str_tree_lines.query(point_to_connect_to, 'touches')
         intersecting_indices = np.setdiff1d(intersecting_indices, np.array([navigation_line_string.index]))
 
@@ -60,7 +62,7 @@ class GeometryHelperFunctions:
             if next_line_string_end_pair != None:
                 ret_val.append(next_line_string_end_pair)
         return ret_val
-    
+
     @staticmethod
     def get_end_coords(navigation_line_string : NavigationLineString):
         return navigation_line_string.line_string.coords[0] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords[-1]

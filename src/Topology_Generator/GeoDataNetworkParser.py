@@ -3,6 +3,7 @@ from esdl import Polygon
 from shapely import LineString, MultiLineString, Point
 import geopandas
 import numpy as np
+from shapely.ops import nearest_points
 
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
@@ -42,13 +43,26 @@ class GeoDataNetworkParser(NetworkParser):
         # Method should be overriden by derrived classes
         pass
 
+    def _remove_connections_with_intersection_at_transformer(self, new_connections_indices : List[int], line_string : LineString):
+        to_remove = []
+        for index in new_connections_indices:
+            building = self.geo_df_bag_data.take([index]).iloc[0].geometry
+            point_on_building, point_on_line = nearest_points(building, line_string)
+            TRANSFORMER_TOUCH_MARGIN = 5.0
+            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=TRANSFORMER_TOUCH_MARGIN)
+            if nearest_lv_station.size > 0:
+                to_remove.append(index)
+        return np.setdiff1d(new_connections_indices, to_remove)
+
     def get_houses_bordering_line(self, line_string : LineString) -> List[Polygon]:
+        # don't count houses connected at the point of a lv station
         MAX_DISTANCE_TO_LINE = 20.0
         ret_val = []
         if not self.geo_df_bag_data.empty:
             indices = self.geo_df_bag_data.sindex.query(line_string, predicate="dwithin", distance=MAX_DISTANCE_TO_LINE)
             new_connections = np.setdiff1d(indices, self.counted_connections_indices)
             new_connections = np.array([index for index in new_connections if self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"] != None and "woonfunctie" in self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"]])
+            new_connections = self._remove_connections_with_intersection_at_transformer(new_connections, line_string)
             self.counted_connections_indices = np.insert(self.counted_connections_indices, 0, new_connections)
 
             for index in new_connections:
