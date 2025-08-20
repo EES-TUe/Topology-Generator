@@ -1,10 +1,10 @@
 from typing import List
+from Topology_Generator import Constants
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase, BuildingYearCategory
 from Topology_Generator.GeoDataNetworkParser import GeoDataNetworkParser
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from shapely import STRtree, dwithin, Point, distance, touches
 import geopandas
-import numpy as np
 
 from Topology_Generator.Logging import LOGGER
 from Topology_Generator.NetworkParser import StationStartingLinesContainer
@@ -102,7 +102,7 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
 
             i = 0
             while lines_intersecting_with_station == [] and i < 5:
-                touch_margin_to_check = touch_margin + i * 50.0
+                touch_margin_to_check = touch_margin + i * Constants.MV_CABLES_TO_HV_MV_STATION_MARGIN
                 LOGGER.debug(f"Trying to find lines connected to station {station} with touch margin {touch_margin_to_check}")
                 lines_intersecting_with_station = self.extract_lines_connected_to_2d_entity_one_side_connected(str_tree_lines, touch_margin_to_check, station)
                 i += 1
@@ -113,32 +113,32 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
     
     def extract_mv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for station in self.geo_df_lv_mv_station.geometry:
-            if dwithin(station, point, 3.0):
-                return self.extract_lines_connected_to_2d_entity_one_side_connected(self.str_tree_mv_lines, 3.0, station)
+            if dwithin(station, point, Constants.MV_CABLES_TO_MV_LV_STATION_MARGIN):
+                return self.extract_lines_connected_to_2d_entity_one_side_connected(self.str_tree_mv_lines, Constants.MV_CABLES_TO_MV_LV_STATION_MARGIN, station)
         return []
     
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for station in self.geo_df_lv_mv_station.geometry:
-            if dwithin(station, point, 10.0):
-                return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, 10.0, station)
+            if dwithin(station, point, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN):
+                return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN, station)
         return []
 
     def extract_mv_lines_that_are_connected_at_point(self, point : Point):
-        ret_val = self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, 3.0, point)
+        ret_val = self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, Constants.MV_CABLES_TO_MV_LV_STATION_MARGIN, point)
         return ret_val
 
-    def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
-        return self.extract_lines_connected_to_stations_include_both_sides_disconnected(self.geo_df_lv_mv_station, self.str_tree_lv_lines, 3.0)
+    # def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
+    #     return self.extract_lines_connected_to_stations_include_both_sides_disconnected(self.geo_df_lv_mv_station, self.str_tree_lv_lines, 3.0)
 
     def extract_lv_lines_connected_at_point(self, point : Point):
-        return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, 3.0, point)
+        return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, Constants.MV_CABLES_TO_MV_LV_STATION_MARGIN, point)
     
     def extract_mv_lines_connected_to_hv_mv_station_at_point(self, point : Point) -> List[NavigationLineString]:
-        indices = self.geo_df_hv_stations.sindex.query(point, predicate="dwithin", distance=20.0)
+        indices = self.geo_df_hv_stations.sindex.query(point, predicate="dwithin", distance=Constants.MV_CABLES_TO_HV_MV_STATION_MARGIN)
         ret_val = []
         if len(indices) > 0:
             station_point = self.geo_df_hv_stations.take([indices[0]]).geometry
-            ret_val = self.extract_lines_connected_to_2d_entity_one_side_connected(self.str_tree_mv_lines, 20.0, Point(station_point.x, station_point.y))
+            ret_val = self.extract_lines_connected_to_2d_entity_one_side_connected(self.str_tree_mv_lines, Constants.MV_CABLES_TO_HV_MV_STATION_MARGIN, Point(station_point.x, station_point.y))
         return ret_val
     
     def remove_navigation_line_strings_not_connected_to_building(self, input : List[NavigationLineString]):
@@ -158,7 +158,7 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
             input.remove(item)
 
     def extract_mv_lines_connected_to_hv_mv_station(self) -> List[StationStartingLinesContainer]:
-        ret_vals = self.extract_lines_connected_to_stations_include_one_side_connected(self.geo_df_hv_stations, self.str_tree_mv_lines, 50.0)
+        ret_vals = self.extract_lines_connected_to_stations_include_one_side_connected(self.geo_df_hv_stations, self.str_tree_mv_lines, Constants.MV_CABLES_TO_HV_MV_STATION_MARGIN)
         for ret_val in ret_vals:
             self.remove_navigation_line_strings_not_connected_to_building(ret_val.starting_lines)
             self.remove_navigation_line_strings_connected_to_mv_station(ret_val.starting_lines)
