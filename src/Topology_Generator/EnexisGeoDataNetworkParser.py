@@ -19,19 +19,19 @@ class EnexisGeoDataNetworkParser(GeoDataNetworkParser):
                 ret_val.append(NavigationLineString(line, not first_point_touches_station, index))
         return ret_val
 
-    def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
-        ret_val = []
-        for station in self.geo_df_lv_mv_station.geometry:
-            lines_intersecting_with_station = []
-            station_polygon = GeometryHelperFunctions.points_to_polygon(station.coords)
-            lv_lines_indices = self.str_tree_lv_lines.query(station_polygon, 'dwithin', OVERLAP_SQUARE_SIZE)
-            for index in lv_lines_indices:
-                lv_line = self.str_tree_lv_lines.geometries.take(index)
-                point_touches_mv_station = GeometryHelperFunctions.polygon_touches_point(Point(lv_line.coords[0]), station_polygon) 
-                lines_intersecting_with_station.append(NavigationLineString(lv_line, not point_touches_mv_station, index))
-            building_year = self.get_building_year_of_building_at_point(station)
-            ret_val.append(StationStartingLinesContainer(lines_intersecting_with_station, building_year))
-        return ret_val
+    # def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
+    #     ret_val = []
+    #     for station in self.geo_df_lv_mv_station.geometry:
+    #         lines_intersecting_with_station = []
+    #         station_polygon = GeometryHelperFunctions.points_to_polygon(station.coords)
+    #         lv_lines_indices = self.str_tree_lv_lines.query(station_polygon, 'dwithin', OVERLAP_SQUARE_SIZE)
+    #         for index in lv_lines_indices:
+    #             lv_line = self.str_tree_lv_lines.geometries.take(index)
+    #             point_touches_mv_station = GeometryHelperFunctions.polygon_touches_point(Point(lv_line.coords[0]), station_polygon) 
+    #             lines_intersecting_with_station.append(NavigationLineString(lv_line, not point_touches_mv_station, index))
+    #         building_year = self.get_building_year_of_building_at_point(station)
+    #         ret_val.append(StationStartingLinesContainer(lines_intersecting_with_station, building_year))
+    #     return ret_val
     
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for station in self.geo_df_lv_mv_station.geometry:

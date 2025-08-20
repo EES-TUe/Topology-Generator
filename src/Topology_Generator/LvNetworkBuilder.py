@@ -105,29 +105,29 @@ class LvNetworkBuilder:
     def _define_initial_loops_mapping(self, starting_lines):
         return {starting_line.line_string.coords[-1] if starting_line.first_point_end else starting_line.line_string.coords[0] : 0 for starting_line in starting_lines}
 
-    def extract_network_and_topologies(self) -> List[NetworkTopologyInfo]:
-        starting_lines = self.parser.extract_lv_lines_connected_to_mv_lv_station()
+    # def extract_network_and_topologies(self) -> List[NetworkTopologyInfo]:
+    #     starting_lines = self.parser.extract_lv_lines_connected_to_mv_lv_station()
 
-        lv_networks = []
-        all_visited_indices = []
+    #     lv_networks = []
+    #     all_visited_indices = []
 
-        for starting_line_container in starting_lines:
-            loops_mapping = self._define_initial_loops_mapping(starting_line_container.starting_lines)
-            for starting_line in starting_line_container.starting_lines:
-                if starting_line.index not in all_visited_indices:
-                    lv_network_topology_pair, visited_indices = self.compute_lv_network_topology_from_lv_mv_station(starting_line, loops_mapping)
-                    lv_networks.append(lv_network_topology_pair)
-                    all_visited_indices.extend(visited_indices)
-        return lv_networks
+    #     for starting_line_container in starting_lines:
+    #         loops_mapping = self._define_initial_loops_mapping(starting_line_container.starting_lines)
+    #         for starting_line in starting_line_container.starting_lines:
+    #             if starting_line.index not in all_visited_indices:
+    #                 lv_network_topology_pair, visited_indices = self.compute_lv_network_topology_from_lv_mv_station(starting_line, loops_mapping)
+    #                 lv_networks.append(lv_network_topology_pair)
+    #                 all_visited_indices.extend(visited_indices)
+    #     return lv_networks
 
     def extract_lv_networks_and_topologies_at_point(self, point : Point) -> List[NetworkTopologyInfo]:
         starting_lines = self.parser.extract_lv_lines_connected_to_mv_lv_station_at_point(point)
-        esdl_lv_networks = []
+        lv_networks = []
         all_visited_indices = []
         loops_mapping = self._define_initial_loops_mapping(starting_lines)
         for starting_line in starting_lines:
             if starting_line.index not in all_visited_indices:
                 lv_network_topology_pair, visited_indices = self.compute_lv_network_topology_from_lv_mv_station(starting_line, loops_mapping)
-                esdl_lv_networks.append(lv_network_topology_pair)
+                lv_networks.append(lv_network_topology_pair)
                 all_visited_indices.extend(visited_indices)
-        return esdl_lv_networks
+        return lv_networks

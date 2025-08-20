@@ -132,8 +132,8 @@ class EsdlNetworkParser(NetworkParser):
                                     esdl_obj_meta_data[esdl_container].attached_assets.append(electricity_cable)
                                 break
 
-    def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
-        return [value for value in self.lines_connected_to_transformer_mapping.values()]
+    # def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
+    #     return [value for value in self.lines_connected_to_transformer_mapping.values()]
 
     def _init_transformer_mapping(self) -> List[StationStartingLinesContainer]:
         for transformer in self.transformers:
