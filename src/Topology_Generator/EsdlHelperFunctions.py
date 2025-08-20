@@ -33,3 +33,10 @@ class EsdlHelperFunctions:
         joint.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         joint.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return joint
+
+    @staticmethod
+    def generate_esdl_import(name : str, lat : float, long : float, voltage : float) -> esdl.Import:
+        esdl_import = esdl.Import(id=str(uuid.uuid4()), name=name, assetType=str(voltage))
+        esdl_import.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        esdl_import.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+        return esdl_import
