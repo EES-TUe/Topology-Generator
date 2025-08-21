@@ -5,6 +5,7 @@ import geopandas
 import numpy as np
 from shapely.ops import nearest_points
 
+from Topology_Generator import Constants
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from enum import Enum
@@ -46,10 +47,14 @@ class GeoDataNetworkParser(NetworkParser):
     def _remove_connections_with_intersection_at_transformer(self, new_connections_indices : List[int], line_string : LineString):
         to_remove = []
         for index in new_connections_indices:
+            building_id = self.geo_df_bag_data.take([index]).iloc[0]["identificatie"]
+            if building_id == '0281100000020035' or building_id == '0281100000020034':
+                bla = 5
             building = self.geo_df_bag_data.take([index]).iloc[0].geometry
             point_on_building, point_on_line = nearest_points(building, line_string)
-            TRANSFORMER_TOUCH_MARGIN = 5.0
-            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=TRANSFORMER_TOUCH_MARGIN)
+            if 157779.300 < point_on_line.x < 157779.600 and 433946.500 < point_on_line.y < 433946.800:
+                bla = 5
+            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN)
             if nearest_lv_station.size > 0:
                 to_remove.append(index)
         return np.setdiff1d(new_connections_indices, to_remove)
@@ -63,6 +68,8 @@ class GeoDataNetworkParser(NetworkParser):
             new_connections = np.setdiff1d(indices, self.counted_connections_indices)
             new_connections = np.array([index for index in new_connections if self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"] != None and "woonfunctie" in self.geo_df_bag_data.take([index]).iloc[0]["gebruiksdoel"]])
             new_connections = self._remove_connections_with_intersection_at_transformer(new_connections, line_string)
+            if 6601 in new_connections or 6603 in new_connections:
+                bla = 5
             self.counted_connections_indices = np.insert(self.counted_connections_indices, 0, new_connections)
 
             for index in new_connections:
