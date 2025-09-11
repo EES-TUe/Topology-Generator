@@ -50,12 +50,7 @@ class MvNetworkBuilder:
         existing_line = next((new_navigation_line for new_navigation_line in next_navigation_line_strings if new_navigation_line.index == navigation_line.index), None)
         return existing_line
     
-    def _generate_new_transformer(self, lat : float, long : float, name : str, commissioning_date : datetime = datetime.min):
-        transformer = esdl.Transformer(id=str(uuid.uuid4()), name=name, assetType="testtrafotype", voltagePrimary=50.0, voltageSecundary=10.0, commissioningDate=commissioning_date)
-        transformer.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
-        transformer.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
-        transformer.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
-        return transformer
+    
     
     def _generate_esdl_cable(self, navigation_line_string : NavigationLineString) -> esdl.ElectricityCable:
         cable = esdl.ElectricityCable(id=str(uuid.uuid4()), length=navigation_line_string.line_string.length, name=f"MV_Cable{navigation_line_string.index}", assetType="testtype")
@@ -105,7 +100,7 @@ class MvNetworkBuilder:
             if isinstance(esdl_obj, esdl.Transformer):
                 break
 
-    def _add_esdl_node_and_joint(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
+    def _add_esdl_joint_and_cable(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
         coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
         lat = coords[0]
         long = coords[1]
@@ -117,13 +112,13 @@ class MvNetworkBuilder:
         lat = coords[0]
         long = coords[1]
         building_year = self.parser.get_building_year_of_transformer_house_at_point(Point(lat, long))
-        to_transformer = self._generate_new_transformer(lat, long, f"transformer{from_node.number}")
+        to_transformer = EsdlHelperFunctions.generate_new_transformer(lat, long, f"transformer{from_node.number}")
         to_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
         to_transformer.port[0].connectedTo.append(to_node.port[1])
         to_node.port[1].connectedTo.append(to_transformer.port[0])
         from_node = self._add_esdl_node_and_edge(navigation_line_string, from_node, to_node, esdl_objs)
         from_node.number += 1
-        lv_transformer_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
+        lv_transformer_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"lvjoint{from_node.number}")
         lv_transformer_node.port[0].connectedTo.append(to_transformer.port[1])
         esdl_objs.append(lv_transformer_node)
         esdl_objs.append(to_transformer)
@@ -185,7 +180,7 @@ class MvNetworkBuilder:
                     cleared = True
                 elif len(next_navigation_line_strings) == 1:
                     # The line has no branches
-                    from_node = self._add_esdl_node_and_joint(navigation_line_string, from_node, ret_val)
+                    from_node = self._add_esdl_joint_and_cable(navigation_line_string, from_node, ret_val)
                     navigation_line_string = next_navigation_line_strings[0]
                     visited_lines.add(navigation_line_string.index)
                     next_navigation_line_strings, next_navigation_line_strings_connected_to_station = self._define_next_lines(navigation_line_string, visited_lines)
@@ -290,20 +285,20 @@ class MvNetworkBuilder:
             coords = GeometryHelperFunctions.get_connected_coords(starting_line)
             trafo_commisioning_date = datetime(building_year, 1, 1)
 
-            transformer = self._generate_new_transformer(coords[0], coords[1], name=self.high_voltage_trafo_name, commissioning_date=trafo_commisioning_date)
+            transformer = EsdlHelperFunctions.generate_new_transformer(coords[0], coords[1], name=self.high_voltage_trafo_name, commissioning_date=trafo_commisioning_date, voltage_primary=50.0, voltage_secundary=10.0)
             network_connection_joint = EsdlHelperFunctions.generate_esdl_joint(coords[0], coords[1], name=f"joint{self.high_voltage_trafo_name}")
             network_connection_joint.commissioningDate = trafo_commisioning_date
-            transformer.port[0].connectedTo.append(network_connection_joint.port[1])
-            network_connection_joint.port[1].connectedTo.append(transformer.port[0])
+            transformer.port[1].connectedTo.append(network_connection_joint.port[0])
+            network_connection_joint.port[0].connectedTo.append(transformer.port[1])
 
             import_connection_joint = EsdlHelperFunctions.generate_esdl_joint(coords[0], coords[1], name=f"joint{self.high_voltage_trafo_name}_import")
             import_connection_joint.commissioningDate = trafo_commisioning_date
-            transformer.port[1].connectedTo.append(import_connection_joint.port[0])
-            import_connection_joint.port[0].connectedTo.append(transformer.port[1])
+            transformer.port[0].connectedTo.append(import_connection_joint.port[1])
+            import_connection_joint.port[1].connectedTo.append(transformer.port[0])
 
             esdl_import = EsdlHelperFunctions.generate_esdl_import(name=f"import_{name}", lat=coords[0], long=coords[1], voltage=50.0)
-            import_connection_joint.port[1].connectedTo.append(esdl_import.port[0])
-            esdl_import.port[0].connectedTo.append(import_connection_joint.port[1])
+            import_connection_joint.port[0].connectedTo.append(esdl_import.port[0])
+            esdl_import.port[0].connectedTo.append(import_connection_joint.port[0])
 
             network_name = f"{name}-{self.starting_lines_container_index}.{self.starting_line_index}"
             file_name = f"{network_name}.esdl"

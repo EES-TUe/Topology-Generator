@@ -10,6 +10,7 @@ from typing import List
 from shapely import Point, LineString, distance, STRtree, dwithin
 from shapely.ops import nearest_points
 from Topology_Generator.Logging import LOGGER
+from esdl.esdl_handler import EnergySystemHandler
 
 
 class MvEnergySystemBuilder:
@@ -17,29 +18,40 @@ class MvEnergySystemBuilder:
     def __init__(self, lv_network_builder : LvNetworkBuilder, archetype_handler : NeighbourhoodArchetypeHandler):
         self.archetype_handler = archetype_handler
         self.lv_network_builder = lv_network_builder
+        self.home_counter = 0
 
 
     def generate_esdl_home(self, coords : tuple[float, float], amount_of_connections : int) -> esdl.Building:
         building_point = esdl.Point(lat=coords[0], lon=coords[1])
-        building = esdl.Building(name=f"{amount_of_connections}xhome", id=str(uuid.uuid4()))
+        self.home_counter += 1
+        building = esdl.Building(name=f"{amount_of_connections}xhome{self.home_counter}", id=str(uuid.uuid4()))
         building.geometry = building_point
-        e_connection = esdl.EConnection(name="home")
+        e_connection = esdl.EConnection(name=f"{amount_of_connections}xhome{self.home_counter}", id=str(uuid.uuid4()))
         e_connection.geometry = building_point
         e_connection.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+        electricity_demand = esdl.ElectricityDemand(name="demand", id=str(uuid.uuid4()), assetType="home_demand")
         for i in range(0, 3):
 
-            electricity_network = esdl.ElectricityNetwork(name=f"ph{i+1}")
+            phase = i + 1
+            electricity_demand_in_port = esdl.InPort(id=str(uuid.uuid4()), name=f"In_Ph{phase}")
+            electricity_demand.port.append(electricity_demand_in_port)
+
+            electricity_network = esdl.ElectricityNetwork(name=f"ph{phase}")
             in_port_electricity_network = esdl.InPort(id=str(uuid.uuid4()), name="In")
-            out_port_econnection = esdl.OutPort(id=str(uuid.uuid4()), name=f"OutPh{i+1}")
+            out_port_econnection = esdl.OutPort(id=str(uuid.uuid4()), name=f"OutPh{phase}")
 
             in_port_electricity_network.connectedTo.append(out_port_econnection)
             out_port_econnection.connectedTo.append(in_port_electricity_network)
 
             e_connection.port.append(out_port_econnection)
             electricity_network.port.append(in_port_electricity_network)
-            electricity_network.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
-            electricity_network.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="In"))
+            phase_out_port = esdl.OutPort(id=str(uuid.uuid4()), name="Out")
+            electricity_network.port.append(phase_out_port)
+            phase_out_port.connectedTo.append(electricity_demand_in_port)
+            electricity_demand_in_port.connectedTo.append(phase_out_port)
+
             building.asset.append(electricity_network)
+        building.asset.append(electricity_demand)
         building.asset.append(e_connection)
         return building
 
@@ -156,7 +168,7 @@ class MvEnergySystemBuilder:
                     if i == len(nav_line_string.line_string.coords) - 2 and point_last_added_joint != point_b:
                         joint_and_cable_number += 1
                         points_for_cable.append(point_b)
-                        last_joint = self.generate_cable_and_joint(f"lv_cable_{transformer_prefix}.{joint_and_cable_number}_main_grid", f"lv_node_{transformer_prefix}.{joint_and_cable_number}", points_for_cable, last_joint, lv_assets)
+                        last_joint = self.generate_cable_and_joint(f"lv_cable_{transformer_prefix}_{joint_and_cable_number}_main_grid", f"lv_node_{transformer_prefix}_{joint_and_cable_number}", points_for_cable, last_joint, lv_assets)
             new_next_lines = []
             for next_line in reversed(next_lines):
                 new_next_lines.extend(GeometryHelperFunctions.get_next_lines(r_tree_lines, next_line))
@@ -202,21 +214,49 @@ class MvEnergySystemBuilder:
         LOGGER.info(f"Number of connections: {amount_of_connections}")
 
 
+    def save_lv_network_as_energy_system(self, lv_assets : List[esdl.Asset], transformer : esdl.Transformer, name : str, file_path : str):
+        esdl_import = EsdlHelperFunctions.generate_esdl_import(f"mv_import_{name}", transformer.geometry.lat, transformer.geometry.lon, transformer.voltagePrimary)
+        esdl_import_joint = EsdlHelperFunctions.generate_esdl_joint(transformer.geometry.lat, transformer.geometry.lon, f"mv_import_joint_{name}")
+        new_transformer = EsdlHelperFunctions.generate_new_transformer(transformer.geometry.lat, transformer.geometry.lon, transformer.name, transformer.commissioningDate, transformer.voltagePrimary, transformer.voltageSecundary)
+
+        esdl_import.port[0].connectedTo.append(esdl_import_joint.port[0])
+        esdl_import_joint.port[0].connectedTo.append(esdl_import.port[0])
+        esdl_import_joint.port[1].connectedTo.append(transformer.port[0])
+
+        new_transformer.port[0].connectedTo.append(esdl_import_joint.port[1])
+        esdl_import_joint.port[1].connectedTo.append(new_transformer.port[0])
+        new_transformer.port[1].connectedTo.append(transformer.port[0])
+
+        lv_assets.append(esdl_import)
+        lv_assets.append(esdl_import_joint)
+        lv_assets.append(new_transformer)
+        esh = EnergySystemHandler()
+
+        es = esh.create_empty_energy_system(name=name, es_description="Autogenerated based on gis data " + name,
+                                            inst_title="Instance name", area_title="Area name")
+
+        energy_system_information = esdl.EnergySystemInformation(id=str(uuid.uuid4()))
+        es.energySystemInformation = energy_system_information
+        EsdlHelperFunctions.add_new_assets_to_energy_system(es, lv_assets)
+        esh.save(file_path)
+
     def build_mv_energy_system(self, mv_network : EnergySystem):
         assets = mv_network.instance[0].area.asset
         transfomers : List[esdl.Transformer] = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
 
         lv_lines_to_vizualize = []
-        for transformer_id, transfomer in enumerate(transfomers):
-            LOGGER.debug(f"Next transformer at point: {(transfomer.geometry.lat, transfomer.geometry.lon)}")
-            transfomer_point = Point(transfomer.geometry.lat, transfomer.geometry.lon)
+        for transformer_id, transformer in enumerate(transfomers):
+            LOGGER.debug(f"Next transformer at point: {(transformer.geometry.lat, transformer.geometry.lon)}")
+            transfomer_point = Point(transformer.geometry.lat, transformer.geometry.lon)
             network_topology_infos = self.lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
             if len(network_topology_infos) > 0:
                 archetype = self.archetype_handler.archetype_at_point(transfomer_point)
                 LOGGER.info(f"LV grid archetype: {archetype}")
                 for network_id, network_topology_info in enumerate(network_topology_infos):
                     lv_lines_to_vizualize.extend(network_topology_info.network_lines)
-                    lv_assets = self.generate_lv_esdl(network_topology_info, transfomer.port[1].connectedTo[0].eContainer(), f"trafo{transformer_id}_lvnetwork{network_id}")
+                    lv_trafo_name = f"trafo{transformer_id}_lvnetwork{network_id}"
+                    lv_assets = self.generate_lv_esdl(network_topology_info, transformer.port[1].connectedTo[0].eContainer(), lv_trafo_name)
+                    self.save_lv_network_as_energy_system(lv_assets, transformer, lv_trafo_name, f"{lv_trafo_name}.esdl")
                     EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
         self.plot_mv_and_lv_network(mv_network.instance[0].area.asset)
         self.print_network_statistics(mv_network)
