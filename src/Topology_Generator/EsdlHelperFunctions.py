@@ -43,7 +43,7 @@ class EsdlHelperFunctions:
         return esdl_import
     
     @staticmethod
-    def generate_new_transformer(lat : float, long : float, name : str, commissioning_date : datetime = datetime.min, voltage_primary=10.0, voltage_secundary=0.38):
+    def generate_new_transformer(lat : float, long : float, name : str, commissioning_date : datetime = datetime.min, voltage_primary=10.0, voltage_secundary=0.40):
         transformer = esdl.Transformer(id=str(uuid.uuid4()), name=name, assetType="testtrafotype", voltagePrimary=voltage_primary, voltageSecundary=voltage_secundary, commissioningDate=commissioning_date)
         transformer.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
         transformer.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
