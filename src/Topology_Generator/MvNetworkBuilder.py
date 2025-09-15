@@ -285,7 +285,7 @@ class MvNetworkBuilder:
             coords = GeometryHelperFunctions.get_connected_coords(starting_line)
             trafo_commisioning_date = datetime(building_year, 1, 1)
 
-            transformer = EsdlHelperFunctions.generate_new_transformer(coords[0], coords[1], name=self.high_voltage_trafo_name, commissioning_date=trafo_commisioning_date, voltage_primary=50.0, voltage_secundary=10.0)
+            transformer = EsdlHelperFunctions.generate_new_transformer(coords[0], coords[1], name=self.high_voltage_trafo_name, commissioning_date=trafo_commisioning_date, voltage_primary=150.0, voltage_secundary=10.0, assetType="highvoltagetesttrafotype ")
             network_connection_joint = EsdlHelperFunctions.generate_esdl_joint(coords[0], coords[1], name=f"joint{self.high_voltage_trafo_name}")
             network_connection_joint.commissioningDate = trafo_commisioning_date
             transformer.port[1].connectedTo.append(network_connection_joint.port[0])
@@ -296,7 +296,7 @@ class MvNetworkBuilder:
             transformer.port[0].connectedTo.append(import_connection_joint.port[1])
             import_connection_joint.port[1].connectedTo.append(transformer.port[0])
 
-            esdl_import = EsdlHelperFunctions.generate_esdl_import(name=f"import_{name}", lat=coords[0], long=coords[1], voltage=50.0)
+            esdl_import = EsdlHelperFunctions.generate_esdl_import(name=f"import_{name}", lat=coords[0], long=coords[1], voltage=150.0)
             import_connection_joint.port[0].connectedTo.append(esdl_import.port[0])
             esdl_import.port[0].connectedTo.append(import_connection_joint.port[0])
 
