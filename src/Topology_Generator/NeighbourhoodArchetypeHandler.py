@@ -20,7 +20,7 @@ class NeighbourhoodArchetypeHandler:
         transformer = Transformer.from_crs("EPSG:28992", "EPSG:4326")
         return Point(transformer.transform(point.x, point.y))
     
-    def archetype_at_point(self, point : Point):
+    def archetype_at_point(self, point : Point) -> int:
         converted_coordinates = self.convert_gis_coordinates_to_archetype_coordinates(point)
         output = self.neigbourhood_gdf.sindex.query(Point(converted_coordinates.y, converted_coordinates.x), predicate="within")
         archetype = 0

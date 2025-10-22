@@ -38,7 +38,7 @@ class MvNetworkBuilder:
     def plot_mv_network(self, mv_network : esdl.EnergySystem):
         esdl_parser = EsdlNetworkParser(energy_system=mv_network)
         plotter = NetworkPlotter(1,1, False)
-        plotter.plot_network(esdl_parser.all_lv_lines, without_axis_numbers=True)
+        plotter.plot_network(esdl_parser.all_mv_lines, without_axis_numbers=True)
         plotter.show_plot()
 
     def _get_lines_connected_to_mv_station_at(self, navigation_line : NavigationLineString):

@@ -18,15 +18,23 @@ class MvEnergySystemBuilder:
     def __init__(self, lv_network_builder : LvNetworkBuilder, archetype_handler : NeighbourhoodArchetypeHandler):
         self.archetype_handler = archetype_handler
         self.lv_network_builder = lv_network_builder
-        self.home_counter = 0
+        self.home_counter = 1
 
 
-    def generate_esdl_home(self, coords : tuple[float, float], amount_of_connections : int) -> esdl.Building:
+    def generate_esdl_homes(self, coords : tuple[float, float], amount_of_homes : int, archetype : int) -> List[esdl.Building]:
+        ret_val = []
+        for i in range(0, amount_of_homes):
+            esdl_home = self.generate_esdl_home(coords, archetype)
+            ret_val.append(esdl_home)
+        return ret_val
+
+
+    def generate_esdl_home(self, coords : tuple[float, float], archetype : int) -> esdl.Building:
         building_point = esdl.Point(lat=coords[0], lon=coords[1])
-        self.home_counter += 1
-        building = esdl.Building(name=f"{amount_of_connections}xhome{self.home_counter}", id=str(uuid.uuid4()))
+        name = f"home_{self.home_counter}_arch{archetype}"
+        building = esdl.Building(name=name, id=str(uuid.uuid4()))
         building.geometry = building_point
-        e_connection = esdl.EConnection(name=f"{amount_of_connections}xhome{self.home_counter}", id=str(uuid.uuid4()))
+        e_connection = esdl.EConnection(name=name, id=str(uuid.uuid4()))
         e_connection.geometry = building_point
         e_connection.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         electricity_demand = esdl.ElectricityDemand(name="demand", id=str(uuid.uuid4()), assetType="home_demand")
@@ -53,6 +61,7 @@ class MvEnergySystemBuilder:
             building.asset.append(electricity_network)
         building.asset.append(electricity_demand)
         building.asset.append(e_connection)
+        self.home_counter += 1
         return building
 
 
@@ -60,7 +69,7 @@ class MvEnergySystemBuilder:
         ret_val = []
         LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
         lv_network_all_buildings = EsdlHelperFunctions.flatten_list_of_lists([edge[1]["houses"] for edge in network_topology_info.network_topology.edges.items()])
-        for home_cable_id, building_entity in enumerate(lv_network_all_buildings):
+        for building_entity in lv_network_all_buildings:
             building = building_entity.geometry.iloc[0]
             closest_line_index = lv_network_str_tree.nearest(building_entity.geometry)
             closest_line = lv_network_str_tree.geometries.take(closest_line_index)[0]
@@ -69,21 +78,22 @@ class MvEnergySystemBuilder:
             amount_of_connections = building_entity["aantal_verblijfsobjecten"].iloc[0]
             if amount_of_connections == 0:
                 amount_of_connections = 1
-            esdl_building = self.generate_esdl_home(new_linestring_to_home.coords[-1], amount_of_connections)
             archetype = self.archetype_handler.archetype_at_point(point_on_building)
-            name = f"lv_cable_{transformer_prefix}_to_home_{home_cable_id}_arch{archetype}"
-            length = new_linestring_to_home.length if new_linestring_to_home.length > 0.0 else 1.0
-            cable_to_home = esdl.ElectricityCable(name=name, length=length, id=str(uuid.uuid4()), assetType="lv_line_to_home")
-            cable_to_home.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
-            cable_to_home.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
-            cable_to_home.geometry = esdl.Line()
-            cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1], CRS="WGS84"))
-            cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[0][1], CRS="WGS84"))
-            esdl_building.asset[-1].port[0].connectedTo.append(cable_to_home.port[1])
-            cable_to_home.port[1].connectedTo.append(esdl_building.asset[-1].port[0])
+            esdl_buildings = self.generate_esdl_homes(new_linestring_to_home.coords[-1], amount_of_connections, archetype)
+            for esdl_building in esdl_buildings:
+                name = f"lv_cable_{transformer_prefix}_to_{esdl_building.name}"
+                length = new_linestring_to_home.length if new_linestring_to_home.length > 0.0 else 1.0
+                cable_to_home = esdl.ElectricityCable(name=name, length=length, id=str(uuid.uuid4()), assetType="lv_line_to_home")
+                cable_to_home.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+                cable_to_home.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
+                cable_to_home.geometry = esdl.Line()
+                cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[-1][0], lon=new_linestring_to_home.coords[-1][1], CRS="WGS84"))
+                cable_to_home.geometry.point.append(esdl.Point(lat=new_linestring_to_home.coords[0][0], lon=new_linestring_to_home.coords[0][1], CRS="WGS84"))
+                esdl_building.asset[-1].port[0].connectedTo.append(cable_to_home.port[1])
+                cable_to_home.port[1].connectedTo.append(esdl_building.asset[-1].port[0])
 
-            new_line_input = LineToHomeInput(new_linestring_to_home, esdl_building, cable_to_home)
-            ret_val.append(new_line_input)
+                new_line_input = LineToHomeInput(new_linestring_to_home, esdl_building, cable_to_home)
+                ret_val.append(new_line_input)
             LOGGER.debug(f"Added line to home with length: {ret_val[-1].line.length}")
 
         return ret_val
@@ -207,11 +217,10 @@ class MvEnergySystemBuilder:
         joints = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Joint)
         transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
         buildings = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Building)
-        amount_of_connections = sum([int(building.name[0:building.name.index("x")]) for building in buildings])
         LOGGER.info(f"Number of cables: {len(cables)}")
         LOGGER.info(f"Number of joints: {len(joints)}")
         LOGGER.info(f"Number of transformers: {len(transformers)}")
-        LOGGER.info(f"Number of connections: {amount_of_connections}")
+        LOGGER.info(f"Number of connections: {len(buildings)}")
 
 
     def save_lv_network_as_energy_system(self, lv_assets : List[esdl.Asset], transformer : esdl.Transformer, name : str, file_path : str):
