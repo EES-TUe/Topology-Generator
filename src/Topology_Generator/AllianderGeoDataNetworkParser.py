@@ -122,6 +122,12 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
             if dwithin(station, point, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN):
                 return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN, station)
         return []
+    
+    def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
+        for station in self.geo_df_lv_stations.geometry:
+            if dwithin(station, point, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN):
+                return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN, station)
+        return []
 
     def extract_mv_lines_that_are_connected_at_point(self, point : Point):
         ret_val = self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, Constants.MV_CABLES_TO_MV_LV_STATION_MARGIN, point)
@@ -164,7 +170,7 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
             self.remove_navigation_line_strings_connected_to_mv_station(ret_val.starting_lines)
         return ret_vals
 
-    def define_cable_type_based_on_year(self, building_year):
+    def define_mv_cable_type_based_on_year(self, building_year):
         building_year_category = self.builidng_year_to_building_year_category(building_year)
         cable_mapping = {
             (GeneratorCableCase.THIN,  BuildingYearCategory.OLD) : "GPLK-Cu-35",
@@ -177,6 +183,14 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
             (GeneratorCableCase.AVG,   BuildingYearCategory.NEW) : "XLPE-Al-150",
             (GeneratorCableCase.THICK, BuildingYearCategory.NEW) : "XLPE-Al-240",
         }
-        return cable_mapping[(self.generator_cable_case, building_year_category)]
+        return cable_mapping[(self.mv_generator_cable_case, building_year_category)]
+    
+    def define_lv_main_grid_cable_type(self):
+        cable_mapping = {
+            GeneratorCableCase.THIN : "NYM-J 3x1.5",
+            GeneratorCableCase.AVG  : "NYM-J 3x2.5",
+            GeneratorCableCase.THICK: "150",
+        }
+        return cable_mapping[self.lv_generator_cable_case]
 
 

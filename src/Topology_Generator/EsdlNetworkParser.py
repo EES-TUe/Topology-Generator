@@ -180,7 +180,4 @@ class EsdlNetworkParser(NetworkParser):
                 if new_line_string not in ret_val:
                     ret_val.append(new_line_string)
                     self.line_string_meta_data[new_line_string] = esdl_obj_meta_data[cable] if cable in esdl_obj_meta_data.keys() else MetaDataESDLCable(cable, 0, [cable.port[0].connectedTo[0].eContainer(), cable.port[1].connectedTo[0].eContainer()])
-            else:
-                if "mv_cable" in cable.name.lower():
-                    LOGGER.info(f"Skipping cable {cable.name} as it is an MV cable")
         return ret_val

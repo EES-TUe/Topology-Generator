@@ -23,14 +23,16 @@ class BuildingYearCategory(Enum):
     NEW = 3
 
 class GeoDataNetworkParser(NetworkParser):
-    def __init__(self, geo_df_lv_lines : geopandas.GeoDataFrame, lv_mv_station_df : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_mv_lines : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG):
+    def __init__(self, geo_df_lv_lines : geopandas.GeoDataFrame, lv_mv_station_df : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_mv_lines : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.GeoDataFrame(), geo_df_lv_stations = geopandas.GeoDataFrame(), mv_generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG, lv_generator_cable_case : GeneratorCableCase = GeneratorCableCase.AVG):
         self.geo_df_lv_lines = geo_df_lv_lines
         self.geo_df_lv_mv_station = lv_mv_station_df
         self.geo_df_bag_data = geo_df_bag_data
         self.geo_df_mv_lines = geo_df_mv_lines
         self.geo_df_hv_stations = geo_df_hv_stations
+        self.geo_df_lv_stations = geo_df_lv_stations
         self.counted_connections_indices = np.array([])
-        self.generator_cable_case : GeneratorCableCase = generator_cable_case
+        self.mv_generator_cable_case : GeneratorCableCase = mv_generator_cable_case
+        self.lv_generator_cable_case : GeneratorCableCase = lv_generator_cable_case
         self.lv_line_buildings_mapping : dict[LineString, List[Polygon]] = self.init_line_building_mapping(geo_df_lv_lines, geo_df_bag_data)
         super().__init__()
 
@@ -52,6 +54,10 @@ class GeoDataNetworkParser(NetworkParser):
             lines.append(new_line)
             
     def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
+        # Method should be overriden by derrived classes
+        pass
+
+    def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         # Method should be overriden by derrived classes
         pass
 

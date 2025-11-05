@@ -42,7 +42,7 @@ class MvNetworkBuilder:
         plotter.show_plot()
 
     def _get_lines_connected_to_mv_station_at(self, navigation_line : NavigationLineString):
-        connection_point = Point(self._get_end_coords_from_navigation_line_string(navigation_line))
+        connection_point = Point(GeometryHelperFunctions.get_end_coords(navigation_line))
         next_navigation_line_strings = self.parser.extract_mv_lines_connected_to_mv_lv_station_at_point(connection_point)
         return next_navigation_line_strings
 
@@ -56,7 +56,7 @@ class MvNetworkBuilder:
         cable = esdl.ElectricityCable(id=str(uuid.uuid4()), length=navigation_line_string.line_string.length, name=f"MV_Cable{navigation_line_string.index}", assetType="testtype")
         esdl_line = esdl.Line()
         for p in navigation_line_string.line_string.coords:
-            esdl_line.point.append(esdl.Point(lat=p[0], lon=p[1], CRS="WGS84"))
+            esdl_line.point.append(EsdlHelperFunctions.generate_esdl_point(p[0], p[1]))
         cable.geometry = esdl_line
         cable.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
@@ -67,9 +67,7 @@ class MvNetworkBuilder:
         esdl_cable.port[0].connectedTo.append(from_node.esdl_obj.port[1])
         from_node.esdl_obj.port[1].connectedTo.append(esdl_cable.port[0])
         to_node.port[0].connectedTo.append(esdl_cable.port[1])
-    
-    def _get_end_coords_from_navigation_line_string(self, navigation_line_string : NavigationLineString):
-        return navigation_line_string.line_string.coords[0] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords[-1]
+
 
     def _add_esdl_node_and_edge(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, to_node : esdl.ConnectableAsset, esdl_objs : List[esdl.ConnectableAsset]) -> EsdlAssetWithMetaData:
         new_cable = self._generate_esdl_cable(navigation_line_string)
@@ -95,7 +93,7 @@ class MvNetworkBuilder:
         cable_year = max(trafo_year, year)
         for esdl_obj in reversed(esdl_objs):
             if isinstance(esdl_obj, esdl.ElectricityCable):
-                esdl_obj.assetType = self.parser.define_cable_type_based_on_year(year)
+                esdl_obj.assetType = self.parser.define_mv_cable_type_based_on_year(year)
                 esdl_obj.eSet("commissioningDate", datetime(cable_year, 1, 1))
             if isinstance(esdl_obj, esdl.Transformer):
                 break
@@ -271,7 +269,7 @@ class MvNetworkBuilder:
 
         default_loops_mapping = {}
         for sl in starting_line_container.starting_lines:
-            key = sl.line_string.coords[-1] if sl.first_point_end else sl.line_string.coords[0]
+            key = sl.connected_point
             default_loops_mapping[key] = None
 
         return default_loops_mapping, starting_line, starting_line_container.building_year

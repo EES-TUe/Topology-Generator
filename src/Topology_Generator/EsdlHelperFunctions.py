@@ -2,6 +2,8 @@ import uuid
 from esdl import esdl
 from typing import List
 from datetime import datetime
+from pyproj import Transformer
+from pyproj import CRS
 
 class EsdlHelperFunctions:
 
@@ -28,9 +30,23 @@ class EsdlHelperFunctions:
             area.asset.append(esdl_obj)
 
     @staticmethod
+    def convert_epsg_28992_to_wgs84(lat : float, long : float) -> tuple[float, float]:
+        crs = CRS(proj='utm', zone=10, ellps='WGS84')
+        transformer = Transformer.from_crs("EPSG:28992", "EPSG:4326")
+        wgs84_lat, wgs84_long = transformer.transform(lat, long)
+        return wgs84_lat, wgs84_long
+
+
+    @staticmethod 
+    def generate_esdl_point(lat_epsg_28992 : float, long_epsg_28992 : float) -> esdl.Point:
+        point = esdl.Point(lat=lat_epsg_28992, lon=long_epsg_28992, CRS="EPSG:28992")
+        return point
+
+
+    @staticmethod
     def generate_esdl_joint(lat : float, long : float, name : str) -> esdl.Joint:
         joint = esdl.Joint(id=str(uuid.uuid4()), name=name)
-        joint.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        joint.geometry = EsdlHelperFunctions.generate_esdl_point(lat, long)
         joint.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         joint.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return joint
@@ -38,14 +54,14 @@ class EsdlHelperFunctions:
     @staticmethod
     def generate_esdl_import(name : str, lat : float, long : float, voltage : float) -> esdl.Import:
         esdl_import = esdl.Import(id=str(uuid.uuid4()), name=name, assetType=str(voltage))
-        esdl_import.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        esdl_import.geometry = EsdlHelperFunctions.generate_esdl_point(lat, long)
         esdl_import.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return esdl_import
     
     @staticmethod
     def generate_new_transformer(lat : float, long : float, name : str, commissioning_date : datetime = datetime.min, voltage_primary=10.0, voltage_secundary=0.40, assetType="testtrafotype"):
         transformer = esdl.Transformer(id=str(uuid.uuid4()), name=name, assetType=assetType, voltagePrimary=voltage_primary, voltageSecundary=voltage_secundary, commissioningDate=commissioning_date)
-        transformer.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        transformer.geometry = EsdlHelperFunctions.generate_esdl_point(lat, long)
         transformer.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         transformer.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return transformer

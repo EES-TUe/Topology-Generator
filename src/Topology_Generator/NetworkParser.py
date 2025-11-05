@@ -28,6 +28,9 @@ class NetworkParser:
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         return []
     
+    def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
+        return []
+    
     def is_there_industry_at_point(self, point : Point) -> bool:
         return False
     
@@ -58,5 +61,5 @@ class NetworkParser:
     def get_line_length_from_metadata(self, line_string : LineString) -> float:
         return 0.0
     
-    def define_cable_type_based_on_year(self, building_year):
+    def define_mv_cable_type_based_on_year(self, building_year):
         return f"{building_year}-type"

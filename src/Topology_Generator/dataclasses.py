@@ -2,15 +2,18 @@ from dataclasses import dataclass, field
 from typing import List
 import esdl
 from networkx import Graph
-from shapely import LineString, Polygon
+from shapely import LineString, Polygon, Point
 
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 
-@dataclass
 class NavigationLineString:
-    line_string : LineString
-    first_point_end : bool
-    index : int
+
+    def __init__(self, line_string : LineString, first_point_end : bool, index : int):
+        self.line_string : LineString = line_string
+        self.first_point_end : bool = first_point_end
+        self.index : int = index
+        self.end_point : tuple[float, float] = line_string.coords[0] if first_point_end else line_string.coords[-1]
+        self.connected_point : tuple[float, float] = line_string.coords[-1] if first_point_end else line_string.coords[0]
 
 class NetworkTopologyInfo:
     def __init__(self, network_lines : List[LineString], network_topology : Graph, starting_line : NavigationLineString):

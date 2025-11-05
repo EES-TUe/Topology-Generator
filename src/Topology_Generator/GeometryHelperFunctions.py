@@ -62,7 +62,7 @@ class GeometryHelperFunctions:
         return ret_val
 
     @staticmethod
-    def get_end_coords(navigation_line_string : NavigationLineString):
+    def get_end_coords(navigation_line_string : NavigationLineString) -> tuple[float, float]:
         return navigation_line_string.line_string.coords[0] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords[-1]
     
     @staticmethod
