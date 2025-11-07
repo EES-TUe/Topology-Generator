@@ -46,8 +46,8 @@ class NetworkParser:
     def extract_mv_lines_connected_to_hv_mv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         return []
 
-    # def extract_lv_lines_connected_to_mv_lv_station(self) -> List[StationStartingLinesContainer]:
-    #     return []
+    def is_line_connected_to_mv_station(self, navigation_line_string : NavigationLineString) -> bool:
+        return False
 
     def extract_mv_lines_connected_to_hv_mv_station(self) -> List[StationStartingLinesContainer]:
         return []

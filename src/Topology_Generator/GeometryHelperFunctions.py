@@ -1,6 +1,6 @@
 
 from typing import List
-from shapely import Polygon, Point, intersects, LineString, STRtree, covers
+from shapely import Polygon, Point, intersects, LineString, STRtree, covers, dwithin
 
 import numpy as np
 
@@ -34,9 +34,9 @@ class GeometryHelperFunctions:
         return intersects(polygon, point_box)
     
     @staticmethod
-    def line_string_connected_to_point(point : Point, line_2 : LineString, index : int) -> NavigationLineString:
-        endpoint_1 = Point(line_2.coords[0])
-        endpoint_2 = Point(line_2.coords[-1])
+    def create_navigation_line_string(point : Point, line : LineString, index : int) -> NavigationLineString:
+        endpoint_1 = Point(line.coords[0])
+        endpoint_2 = Point(line.coords[-1])
 
         point_first_end = False
         if covers(endpoint_1, point):
@@ -45,8 +45,24 @@ class GeometryHelperFunctions:
             point_first_end = True
         else:
             return None
-        return NavigationLineString(line_2, point_first_end, index)
+        return NavigationLineString(line, point_first_end, index)
+    
+    @staticmethod
+    def create_navigation_line_string_with_margin(point : Point, line : LineString, index : int, margin : float) -> NavigationLineString | None:
+        endpoint_1 = Point(line.coords[0])
+        endpoint_2 = Point(line.coords[-1])
 
+        point_first_end = False
+        if dwithin(endpoint_1, point, margin) and dwithin(endpoint_2, point, margin):
+            return None
+        if dwithin(endpoint_1, point, margin):
+            point_first_end = False
+        elif dwithin(endpoint_2, point, margin):
+            point_first_end = True
+        else:
+            return None
+        return NavigationLineString(line, point_first_end, index)
+        
     @staticmethod
     def get_next_lines(str_tree_lines : STRtree, navigation_line_string : NavigationLineString) -> List[NavigationLineString]:
         point_to_connect_to = Point(navigation_line_string.line_string.coords[0]) if navigation_line_string.first_point_end else Point(navigation_line_string.line_string.coords[-1])
@@ -56,7 +72,22 @@ class GeometryHelperFunctions:
         ret_val = []
         for index in intersecting_indices:
             next_line = str_tree_lines.geometries.take(index)
-            next_line_string_end_pair = GeometryHelperFunctions.line_string_connected_to_point(point_to_connect_to, next_line, index)
+            next_line_string_end_pair = GeometryHelperFunctions.create_navigation_line_string(point_to_connect_to, next_line, index)
+            if next_line_string_end_pair != None:
+                ret_val.append(next_line_string_end_pair)
+        return ret_val
+
+    
+    @staticmethod
+    def get_next_lines_with_touch_margin(str_tree_lines : STRtree, navigation_line_string : NavigationLineString, touch_margin : float):
+        point_to_connect_to = Point(navigation_line_string.line_string.coords[0]) if navigation_line_string.first_point_end else Point(navigation_line_string.line_string.coords[-1])
+        intersecting_indices = str_tree_lines.query(point_to_connect_to, 'dwithin', touch_margin)
+        intersecting_indices = np.setdiff1d(intersecting_indices, np.array([navigation_line_string.index]))
+
+        ret_val = []
+        for index in intersecting_indices:
+            next_line = str_tree_lines.geometries.take(index)
+            next_line_string_end_pair = GeometryHelperFunctions.create_navigation_line_string_with_margin(point_to_connect_to, next_line, index, touch_margin)
             if next_line_string_end_pair != None:
                 ret_val.append(next_line_string_end_pair)
         return ret_val

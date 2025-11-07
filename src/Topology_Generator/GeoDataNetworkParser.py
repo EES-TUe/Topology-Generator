@@ -65,6 +65,10 @@ class GeoDataNetworkParser(NetworkParser):
         # Method should be overriden by derrived classes
         pass
 
+    def is_line_connected_to_mv_station(self, navigation_line_string : NavigationLineString) -> bool:
+        # Method should be overriden by derrived classes
+        pass
+
     def _remove_connections_with_intersection_at_transformer(self, new_connections_indices : List[int], line_string : LineString):
         to_remove = []
         for index in new_connections_indices:

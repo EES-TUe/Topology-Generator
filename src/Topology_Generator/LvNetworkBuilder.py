@@ -32,15 +32,14 @@ class LvNetworkBuilder:
     
     def get_next_lines_lv_network(self, next_line_string_end_pair : NavigationLineString) -> List[NavigationLineString]:
         new_lines = GeometryHelperFunctions.get_next_lines(self.str_tree_lines, next_line_string_end_pair)
-        point_of_potential_station = GeometryHelperFunctions.get_end_coords(next_line_string_end_pair)
+        point_of_potential_station = next_line_string_end_pair.end_point
         ret_val = new_lines
         if self.filter_lv_lines_connected_to_mv_lines:
             lines_connected_to_transformer = self.parser.extract_lv_lines_connected_to_mv_lv_station_at_point(Point(point_of_potential_station))
             ret_val = [new_line for new_line in new_lines if new_line not in lines_connected_to_transformer]
         if ret_val == []:
             ret_val = self.parser.extract_lv_lines_connected_to_lv_station_at_point(Point(point_of_potential_station))
-            if len(ret_val) > 0:
-                bal = 0
+            ret_val = [value for value in ret_val if value.index != next_line_string_end_pair.index]
 
         return ret_val
 
@@ -60,16 +59,10 @@ class LvNetworkBuilder:
                     common_point = next((common_point for common_point in common_points if common_point in loops_mapping ), None)
                     if common_point != None:
                         # Case alogrithm has looped back to a point it has been before
-                        LOGGER.info(f"Looped back to point {common_point}")
-                        looped_back_node = loops_mapping[common_point]
-                        start_node = 0
-                        if looped_back_node == start_node:
-                            LOGGER.info("Looped back to start point")
-                        if looped_back_node != start_node:
-                            network_graph.add_edge(from_node, loops_mapping[common_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
-                            if visited_lines[0].index in [next_navigation_line_string.index for next_navigation_line_string in next_navigation_line_strings]:
-                                # Case alogrithm looped back to the starting point
-                                next_navigation_line_strings.clear()
+                        network_graph.add_edge(from_node, loops_mapping[common_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
+                        if visited_lines[0].index in [next_navigation_line_string.index for next_navigation_line_string in next_navigation_line_strings]:
+                            # Case alogrithm looped back to the starting point
+                            next_navigation_line_strings.clear()
                     elif all(next_line_string_end_pair.line_string not in visited_lines for next_line_string_end_pair in next_navigation_line_strings):
                         # Case alogrithm has found a new intersection of lines
                         last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
@@ -79,7 +72,6 @@ class LvNetworkBuilder:
 
                     for navigation_line_string in next_navigation_line_strings:
                         last_added_node = self._build_lv_network_recursive(network_graph, navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
-
                     next_navigation_line_strings.clear()
                     cleared = True
                 elif len(next_navigation_line_strings) == 1:
@@ -89,9 +81,9 @@ class LvNetworkBuilder:
                     self._update_line_labels(navigation_line_string, edge_label)
                     next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
-            if len(next_navigation_line_strings) == 0 and not cleared:
-                # Case we have reached a dead end or looped back to mv lv station
-                connection_point = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+            if len(next_navigation_line_strings) == 0 and not cleared and navigation_line_string.end_point not in loops_mapping.keys() and not self.parser.is_line_connected_to_mv_station(navigation_line_string):
+                # Case we have reached a dead end
+                connection_point = navigation_line_string.end_point
                 if connection_point in loops_mapping:
                     network_graph.add_edge(from_node, loops_mapping[connection_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
                 else:
@@ -104,7 +96,7 @@ class LvNetworkBuilder:
         houses = self.parser.get_houses_bordering_line(navigation_line_string.line_string)
         edge_label.amount_of_connections += len(houses) if len(houses) > 0 else self.parser.get_amount_of_connections_bordering_line(navigation_line_string.line_string)
         edge_label.houses_bordering_line.extend(houses)
-        edge_label.line_strings.append(navigation_line_string)
+        edge_label.line_strings.append(navigation_line_string.line_string)
 
     def compute_lv_network_topology_from_lv_mv_station(self, starting_line : NavigationLineString, loops_mapping : dict[Tuple[float, float], int] ) -> Tuple[NetworkTopologyInfo, List[int]]:
         network_graph = nx.Graph()
@@ -112,7 +104,8 @@ class LvNetworkBuilder:
         network_graph.add_node(start_node)
         visited_lines : List[NavigationLineString] = []
         self._build_lv_network_recursive(network_graph, starting_line, start_node, start_node, visited_lines, loops_mapping)
-        return NetworkTopologyInfo([visited_line.line_string for visited_line in visited_lines], network_graph, starting_line), [visited_line.index for visited_line in visited_lines]
+        # Visited lines are being used instead of lines in labels, todo check labels
+        return NetworkTopologyInfo(network_graph, starting_line), [visited_line.index for visited_line in visited_lines]
     
     def _define_initial_loops_mapping(self, starting_lines) -> dict[Tuple[float, float], int]:
         return {starting_line.line_string.coords[-1] if starting_line.first_point_end else starting_line.line_string.coords[0] : 0 for starting_line in starting_lines}

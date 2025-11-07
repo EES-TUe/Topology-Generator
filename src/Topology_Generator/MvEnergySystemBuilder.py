@@ -1,11 +1,12 @@
 import uuid
 from esdl import EnergySystem, esdl
+from Topology_Generator import Constants
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import LineToHomeInput, NetworkTopologyInfo
+from Topology_Generator.dataclasses import LineToHomeInput, NavigationLineString, NetworkTopologyInfo
 from typing import List
 from shapely import Point, LineString, distance, STRtree, dwithin
 from shapely.ops import nearest_points
@@ -135,18 +136,30 @@ class MvEnergySystemBuilder:
 
     def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, start_joint : esdl.Joint, transformer_prefix : str) -> esdl.EnergySystem:
         r_tree_lines = STRtree(network_topology_info.network_lines)
+        log = False
+        seen_indices = []
+        if network_topology_info.amount_of_connections == 68:
+            log = True
         lines_to_home_inputs = self.generate_lines_connected_to_homes(transformer_prefix, r_tree_lines, network_topology_info)
         joint_and_cable_number = 1
         lv_assets = []
         last_joint = start_joint
         point_last_added_joint = (start_joint.geometry.lat, start_joint.geometry.lon)
         starting_line_new_r_tree = network_topology_info.starting_line
-        start_point = GeometryHelperFunctions.get_connected_coords(starting_line_new_r_tree)
+        start_point = starting_line_new_r_tree.connected_point
         start_line_index = r_tree_lines.query(Point(start_point), 'touches')
         starting_line_new_r_tree.index = start_line_index[0]
-        next_lines = [starting_line_new_r_tree]
+        next_lines : List[NavigationLineString] = [starting_line_new_r_tree]
         while next_lines != []:
             for nav_line_string in next_lines:
+                if nav_line_string.index == 5 and network_topology_info.amount_of_connections == 68:
+                    bal = 0
+                if log:
+                    if nav_line_string.index in seen_indices:
+                        LOGGER.info(f"Seen index {nav_line_string.index}")
+                        raise ValueError("bal")
+                    LOGGER.info(f"Seen index {nav_line_string.index}")
+                    seen_indices.append(nav_line_string.index)
                 points_for_cable = []
                 added_lines_to_home = False
                 reversed_iteration = -1 if nav_line_string.first_point_end else 1
@@ -185,12 +198,12 @@ class MvEnergySystemBuilder:
                         joint_and_cable_number += 1
                         points_for_cable.append(point_b)
                         last_joint = self.generate_cable_and_joint(f"lv_cable_{transformer_prefix}_{joint_and_cable_number}_main_grid", f"lv_node_{transformer_prefix}_{joint_and_cable_number}", points_for_cable, last_joint, lv_assets)
-            new_next_lines = []
+            new_next_lines : List[NavigationLineString] = []
             for next_line in reversed(next_lines):
-                new_next_lines.extend(GeometryHelperFunctions.get_next_lines(r_tree_lines, next_line))
+                new_next_lines.extend(GeometryHelperFunctions.get_next_lines_with_touch_margin(r_tree_lines, next_line, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN))
             next_lines = new_next_lines
 
-        self.plot_intermediate_result(lv_assets)
+        # self.plot_intermediate_result(lv_assets)
         return lv_assets
 
 
@@ -278,14 +291,15 @@ class MvEnergySystemBuilder:
                 LOGGER.info(f"LV grid archetype: {archetype}")
                 lv_assets = []
                 for network_id, network_topology_info in enumerate(network_topology_infos):
-                    self.plot_line_strings(network_topology_info.network_lines)
-                    lv_trafo_name = f"trafo{transformer.name}_lvnetwork{network_id}"
-                    lv_joint = transformer.port[1].connectedTo[0].eContainer()
-                    new_lv_assets = self.generate_lv_esdl(network_topology_info, lv_joint, lv_trafo_name)
-                    amount_of_new_connections = len(EsdlHelperFunctions.get_all_esdl_objects_from_type(new_lv_assets, esdl.Building))
-                    LOGGER.info(f"New connections in esdl: {amount_of_new_connections}")
-                    lv_assets.extend(new_lv_assets)
-                    amount_of_connections_transformer[f"transformer{transformer.name}"] = amount_of_connections_transformer.get(f"transformer{transformer.name}", 0) + network_topology_info.amount_of_connections
+                    if len(network_topology_info.buildings) > 0:
+                        self.plot_line_strings(network_topology_info.network_lines)
+                        lv_trafo_name = f"trafo{transformer.name}_lvnetwork{network_id}"
+                        lv_joint = transformer.port[1].connectedTo[0].eContainer()
+                        new_lv_assets = self.generate_lv_esdl(network_topology_info, lv_joint, lv_trafo_name)
+                        amount_of_new_connections = len(EsdlHelperFunctions.get_all_esdl_objects_from_type(new_lv_assets, esdl.Building))
+                        LOGGER.info(f"New connections in esdl: {amount_of_new_connections}")
+                        lv_assets.extend(new_lv_assets)
+                        amount_of_connections_transformer[f"transformer{transformer.name}"] = amount_of_connections_transformer.get(f"transformer{transformer.name}", 0) + network_topology_info.amount_of_connections
                 self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
         self.plot_mv_and_lv_network(mv_network.instance[0].area.asset)
         self.print_network_statistics(mv_network, amount_of_connections_transformer)

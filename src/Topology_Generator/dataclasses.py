@@ -16,8 +16,8 @@ class NavigationLineString:
         self.connected_point : tuple[float, float] = line_string.coords[-1] if first_point_end else line_string.coords[0]
 
 class NetworkTopologyInfo:
-    def __init__(self, network_lines : List[LineString], network_topology : Graph, starting_line : NavigationLineString):
-        self.network_lines : List[LineString] = network_lines
+    def __init__(self, network_topology : Graph, starting_line : NavigationLineString):
+        self.network_lines : List[LineString] = EsdlHelperFunctions.flatten_list_of_lists([edge[1]["line_strings"] for edge in network_topology.edges.items()])
         self.network_topology : Graph = network_topology
         self.starting_line : NavigationLineString = starting_line
         self.amount_of_connections : int = sum([edge[1]["amount_of_connections"] for edge in network_topology.edges.items()])
@@ -36,7 +36,7 @@ class EdgeLabel:
     length : float
     amount_of_connections : int
     houses_bordering_line : List[Polygon] = field(default_factory=list)
-    line_strings : List[NavigationLineString] = field(default_factory=list)
+    line_strings : List[LineString] = field(default_factory=list)
 
 @dataclass
 class EnergySystemOutput:

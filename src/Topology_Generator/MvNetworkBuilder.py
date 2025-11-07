@@ -42,7 +42,7 @@ class MvNetworkBuilder:
         plotter.show_plot()
 
     def _get_lines_connected_to_mv_station_at(self, navigation_line : NavigationLineString):
-        connection_point = Point(GeometryHelperFunctions.get_end_coords(navigation_line))
+        connection_point = Point(navigation_line.end_point)
         next_navigation_line_strings = self.parser.extract_mv_lines_connected_to_mv_lv_station_at_point(connection_point)
         return next_navigation_line_strings
 
@@ -99,14 +99,14 @@ class MvNetworkBuilder:
                 break
 
     def _add_esdl_joint_and_cable(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
-        coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+        coords = navigation_line_string.end_point
         lat = coords[0]
         long = coords[1]
         to_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
         return self._add_esdl_node_and_edge(navigation_line_string, from_node, to_node, esdl_objs)
 
     def _add_esdl_node_and_transformer(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
-        coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+        coords = navigation_line_string.end_point
         lat = coords[0]
         long = coords[1]
         building_year = self.parser.get_building_year_of_transformer_house_at_point(Point(lat, long))
@@ -148,7 +148,7 @@ class MvNetworkBuilder:
             next_navigation_line_strings, next_navigation_line_strings_connected_to_station = self._define_next_lines(navigation_line_string, visited_lines)
             cleared = False
             while len(next_navigation_line_strings) + len(next_navigation_line_strings_connected_to_station) > 0:
-                coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+                coords = navigation_line_string.end_point
                 if len(next_navigation_line_strings_connected_to_station) > 1:
                     # Case the line ending has multiple branches
                     station_at_end_of_line = loops_mapping.get(coords, None)
@@ -157,7 +157,7 @@ class MvNetworkBuilder:
                         self._add_loop_back_cable(navigation_line_string, from_node, ret_val, station_at_end_of_line)
                     elif all(next_line_string_end_pair.index not in visited_lines for next_line_string_end_pair in next_navigation_line_strings_connected_to_station):
                         # Case alogrithm has found a new intersection of lines
-                        common_point = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+                        common_point = navigation_line_string.end_point
                         from_node = self._add_esdl_node_and_transformer(navigation_line_string, from_node, ret_val)
                         loops_mapping[common_point] = from_node.esdl_obj
                     if (station_at_end_of_line != None and self.high_voltage_trafo_name not in station_at_end_of_line.name) or station_at_end_of_line == None:
@@ -190,7 +190,7 @@ class MvNetworkBuilder:
                     visited_lines.add(navigation_line_string.index)
                     next_navigation_line_strings, next_navigation_line_strings_connected_to_station = self._define_next_lines(navigation_line_string, visited_lines)
 
-            coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+            coords = navigation_line_string.end_point
             if len(next_navigation_line_strings) + len(next_navigation_line_strings_connected_to_station) == 0 and coords in loops_mapping and not cleared:
                 # Case we have looped back to a station but no next lines are found
                 visited_lines.add(navigation_line_string.index)
@@ -216,10 +216,10 @@ class MvNetworkBuilder:
 
     def _remove_out_of_bounds_lines(self, next_navigation_line_strings : List[NavigationLineString]):
         out_of_bounds_strings = [next_navigation_line_string for next_navigation_line_string in next_navigation_line_strings if 
-                                GeometryHelperFunctions.get_end_coords(next_navigation_line_string)[0] < self.x_bottom_left or 
-                                GeometryHelperFunctions.get_end_coords(next_navigation_line_string)[1] > self.y_top_right or 
-                                GeometryHelperFunctions.get_end_coords(next_navigation_line_string)[0] > self.x_top_right or 
-                                GeometryHelperFunctions.get_end_coords(next_navigation_line_string)[1] < self.y_bottom_left]
+                                next_navigation_line_string.end_point[0] < self.x_bottom_left or 
+                                next_navigation_line_string.end_point[1] > self.y_top_right or 
+                                next_navigation_line_string.end_point[0] > self.x_top_right or 
+                                next_navigation_line_string.end_point[1] < self.y_bottom_left]
         for out_of_bounds_string in out_of_bounds_strings:
             next_navigation_line_strings.remove(out_of_bounds_string)
 
@@ -232,16 +232,16 @@ class MvNetworkBuilder:
         next_navigation_line_strings = GeometryHelperFunctions.get_next_lines(self.str_tree_mv_lines, navigation_line)
         return next_navigation_line_strings
 
-    def _define_next_lines(self, navigation_line_string, visited_indices):
+    def _define_next_lines(self, navigation_line_string : NavigationLineString, visited_indices):
         next_navigation_line_strings = self._get_next_lines_mv_network(navigation_line_string)
-        coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+        coords = navigation_line_string.end_point
         next_navigation_line_strings_connected_to_station = []
         if len(next_navigation_line_strings) == 0:
             next_navigation_line_strings_connected_to_station = self._get_lines_connected_to_mv_station_at(navigation_line_string)
             if len(next_navigation_line_strings_connected_to_station) == 0:
                 next_navigation_line_strings_connected_to_station = self.parser.extract_mv_lines_connected_to_hv_mv_station_at_point(Point(coords))
             if len(next_navigation_line_strings) == 0 and len(next_navigation_line_strings_connected_to_station) == 0:
-                next_navigation_line_strings_connected_to_station = self.parser.extract_mv_lines_that_are_connected_at_point(Point(GeometryHelperFunctions.get_end_coords(navigation_line_string)))
+                next_navigation_line_strings_connected_to_station = self.parser.extract_mv_lines_that_are_connected_at_point(Point(navigation_line_string.end_point))
         self._remove_out_of_bounds_lines(next_navigation_line_strings)
         self._remove_duplicate_lines(visited_indices, next_navigation_line_strings)
         self._remove_duplicate_lines(visited_indices, next_navigation_line_strings_connected_to_station)
@@ -280,7 +280,7 @@ class MvNetworkBuilder:
             default_loops_mapping, starting_line, building_year = self._initialize_starting_parameters()
 
             esh = EnergySystemHandler()
-            coords = GeometryHelperFunctions.get_connected_coords(starting_line)
+            coords = starting_line.connected_point
             trafo_commisioning_date = datetime(building_year, 1, 1)
 
             transformer = EsdlHelperFunctions.generate_new_transformer(coords[0], coords[1], name=self.high_voltage_trafo_name, commissioning_date=trafo_commisioning_date, voltage_primary=150.0, voltage_secundary=10.0, assetType="highvoltagetesttrafotype ")
