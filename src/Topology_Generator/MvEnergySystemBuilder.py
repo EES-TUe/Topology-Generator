@@ -135,7 +135,8 @@ class MvEnergySystemBuilder:
 
 
     def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, start_joint : esdl.Joint, transformer_prefix : str) -> esdl.EnergySystem:
-        r_tree_lines = STRtree(network_topology_info.network_lines)
+        r_tree_lines = STRtree([navigation_line_string.line_string for navigation_line_string in network_topology_info.network_lines])
+
         log = False
         seen_indices = []
         if network_topology_info.amount_of_connections == 68:
@@ -145,21 +146,14 @@ class MvEnergySystemBuilder:
         lv_assets = []
         last_joint = start_joint
         point_last_added_joint = (start_joint.geometry.lat, start_joint.geometry.lon)
-        starting_line_new_r_tree = network_topology_info.starting_line
-        start_point = starting_line_new_r_tree.connected_point
-        start_line_index = r_tree_lines.query(Point(start_point), 'touches')
-        starting_line_new_r_tree.index = start_line_index[0]
-        next_lines : List[NavigationLineString] = [starting_line_new_r_tree]
+        # starting_line_new_r_tree = network_topology_info.starting_line
+        # start_point = starting_line_new_r_tree.connected_point
+        # start_line_index = r_tree_lines.query(Point(start_point), 'touches')
+        # starting_line_new_r_tree.index = start_line_index[0]
+        start_edge_data_view = network_topology_info.network_topology.edges.data(nbunch=0)
+        next_lines : List[NavigationLineString] = EsdlHelperFunctions.flatten_list_of_lists([edge[2]["line_strings"] for edge in start_edge_data_view])
         while next_lines != []:
             for nav_line_string in next_lines:
-                if nav_line_string.index == 5 and network_topology_info.amount_of_connections == 68:
-                    bal = 0
-                if log:
-                    if nav_line_string.index in seen_indices:
-                        LOGGER.info(f"Seen index {nav_line_string.index}")
-                        raise ValueError("bal")
-                    LOGGER.info(f"Seen index {nav_line_string.index}")
-                    seen_indices.append(nav_line_string.index)
                 points_for_cable = []
                 added_lines_to_home = False
                 reversed_iteration = -1 if nav_line_string.first_point_end else 1
@@ -292,7 +286,7 @@ class MvEnergySystemBuilder:
                 lv_assets = []
                 for network_id, network_topology_info in enumerate(network_topology_infos):
                     if len(network_topology_info.buildings) > 0:
-                        self.plot_line_strings(network_topology_info.network_lines)
+                        self.plot_line_strings([line.line_string for line in network_topology_info.network_lines])
                         lv_trafo_name = f"trafo{transformer.name}_lvnetwork{network_id}"
                         lv_joint = transformer.port[1].connectedTo[0].eContainer()
                         new_lv_assets = self.generate_lv_esdl(network_topology_info, lv_joint, lv_trafo_name)

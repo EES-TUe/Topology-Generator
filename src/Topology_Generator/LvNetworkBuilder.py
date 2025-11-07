@@ -96,7 +96,7 @@ class LvNetworkBuilder:
         houses = self.parser.get_houses_bordering_line(navigation_line_string.line_string)
         edge_label.amount_of_connections += len(houses) if len(houses) > 0 else self.parser.get_amount_of_connections_bordering_line(navigation_line_string.line_string)
         edge_label.houses_bordering_line.extend(houses)
-        edge_label.line_strings.append(navigation_line_string.line_string)
+        edge_label.line_strings.append(navigation_line_string)
 
     def compute_lv_network_topology_from_lv_mv_station(self, starting_line : NavigationLineString, loops_mapping : dict[Tuple[float, float], int] ) -> Tuple[NetworkTopologyInfo, List[int]]:
         network_graph = nx.Graph()
