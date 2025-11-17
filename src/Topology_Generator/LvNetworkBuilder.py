@@ -70,8 +70,16 @@ class LvNetworkBuilder:
                         for common_point in common_points:
                             loops_mapping[common_point] = from_node
 
+                    found_mv_station_connection = False
+                    last_added_node_new = last_added_node
                     for navigation_line_string in next_navigation_line_strings:
-                        last_added_node = self._build_lv_network_recursive(network_graph, navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
+                        prev_last_added_node = last_added_node
+                        last_added_node_new = self._build_lv_network_recursive(network_graph, navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
+                        if prev_last_added_node == last_added_node_new:
+                            # Algorithm has found a branch that connects to a mv station
+                            found_mv_station_connection = True
+                    last_added_node = last_added_node if found_mv_station_connection else last_added_node_new
+
                     next_navigation_line_strings.clear()
                     cleared = True
                 elif len(next_navigation_line_strings) == 1:
