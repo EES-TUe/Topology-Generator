@@ -35,6 +35,7 @@ class EsdlNetworkTopology(NetworkTopologyInfo):
 class EdgeLabel:
     length : float
     amount_of_connections : int
+    meets_voltage_drop_requirements : bool = True
     houses_bordering_line : List[Polygon] = field(default_factory=list)
     line_strings : List[NavigationLineString] = field(default_factory=list)
 

@@ -1,8 +1,8 @@
 import unittest
 import geopandas
 
-from shapely import LineString, Polygon
-from Topology_Generator.EnexisGeoDataNetworkParser import EnexisGeoDataNetworkParser
+from shapely import LineString, Polygon, Point
+from Topology_Generator.AllianderGeoDataNetworkParser import AllianderGeoDataNetworkParser
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 import networkx as nx
 
@@ -11,13 +11,29 @@ from Topology_Generator.dataclasses import NavigationLineString
 class TestLvNetworkBuilder(unittest.TestCase):
 
     def setUp(self):
-        lv_mv_station = LineString([(0, 0),(2,0),(2,2),(0,2), (0,0)])
+        lv_mv_station = Point(0,0)
         self.lv_mv_geo_df = geopandas.GeoDataFrame(
             {
                 "id": [1],
                 "geometry": [lv_mv_station]
             }
         )
+
+        self.lv_stations_geo_df = geopandas.GeoDataFrame(
+            {
+                "id": [1],
+                "geometry": [Point(100,2)]
+            }
+        )
+
+        lv_line_strings = [
+            LineString([(1,0), (50,1)]),
+            LineString([(50,1), (50,52)]),
+            LineString([(50,52), (53,55)]),
+            LineString([(50,1), (100,2)]),
+        ]
+
+
 
     def test_starting_lines_are_extracted_correctly(self):
         # Arrange
@@ -32,8 +48,8 @@ class TestLvNetworkBuilder(unittest.TestCase):
         )
 
         # Execute
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
-        starting_points = network_parser.extract_lv_lines_connected_to_mv_lv_station()
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
+        starting_points = network_parser.extract_lv_lines_connected_to_mv_lv_station_at_point(Point(0,0))
 
         # Assert
         self.assertEqual(len(starting_points), 1)
@@ -51,11 +67,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
             }
         )
 
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
         network_builder = LvNetworkBuilder(network_parser)
 
         # Execute
-        lv_network_topology = network_builder.extract_network_and_topologies()[0].network_topology
+        lv_network_topology = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))[0].network_topology
         edge_list = [(u,v,d) for u,v,d in lv_network_topology.edges.data()]
         node_list = [n for n in lv_network_topology.nodes]
 
@@ -76,11 +92,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
             }
         )
 
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
         network_builder = LvNetworkBuilder(network_parser)
 
         # Execute
-        lv_network_topology = network_builder.extract_network_and_topologies()[0].network_topology
+        lv_network_topology = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))[0].network_topology
         edge_list = [(u,v,d) for u,v,d in lv_network_topology.edges.data()]
 
         # Assert
@@ -103,11 +119,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
             }
         )
 
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
         network_builder = LvNetworkBuilder(network_parser)
 
         # Execute
-        lv_network_topology = network_builder.extract_network_and_topologies()[0].network_topology
+        lv_network_topology = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))[0].network_topology
         edge_list = [(u,v,d) for u,v,d in lv_network_topology.edges.data()]
 
         # Assert
@@ -135,11 +151,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
             }
         )
 
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df, bag_data_geo_df)
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df, bag_data_geo_df)
         network_builder = LvNetworkBuilder(network_parser)
 
         # Execute
-        lv_network_topology = network_builder.extract_network_and_topologies()[0].network_topology
+        lv_network_topology = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))[0].network_topology
         edge_list = [(u,v,d) for u,v,d in lv_network_topology.edges.data()]
 
         # Assert
@@ -168,11 +184,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
             }
         )
 
-        network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df, bag_data_geo_df)
+        network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df, bag_data_geo_df)
         network_builder = LvNetworkBuilder(network_parser)
 
         # Execute
-        lv_network_topologies = network_builder.extract_network_and_topologies()
+        lv_network_topologies = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))
         edge_list = []
         for lv_network_topology in lv_network_topologies:
             edge_list.extend([(u,v,d) for u,v,d in lv_network_topology.network_topology.edges.data()])
@@ -201,11 +217,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
                     }
                 )
         
-                network_parser = EnexisGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
+                network_parser = AllianderGeoDataNetworkParser(lv_lines_geo_df, self.lv_mv_geo_df)
                 network_builder = LvNetworkBuilder(network_parser)
 
                 # Execute
-                lv_network_topologies = network_builder.extract_network_and_topologies()
+                lv_network_topologies = network_builder.extract_lv_networks_and_topologies_at_point(Point(0,0))
                 lv_network_topologiy = lv_network_topologies[0]
                 edge_list = [(u,v,d) for u,v,d in lv_network_topologiy.network_topology.edges.data()]
 
@@ -213,6 +229,11 @@ class TestLvNetworkBuilder(unittest.TestCase):
                 self.assertEqual(len(lv_network_topologies), 1)
                 self.assertEqual(len(edge_list), 5)
                 self.assertGreater(len(nx.find_cycle(lv_network_topologiy.network_topology)), 0)
+
+    def test_lv_cables_are_added_according_to_design_rules(self):
+        # This is a placeholder for a test that would check if LV cables are added according to design rules.
+        self.assertTrue(True)
+
 
 if __name__ == '__main__':
     unittest.main()

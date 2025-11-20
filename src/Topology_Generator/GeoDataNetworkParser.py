@@ -5,7 +5,7 @@ import geopandas
 import numpy as np
 from shapely.ops import nearest_points
 
-from Topology_Generator import Constants
+from Topology_Generator.Constants import GeoDataMargins
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from enum import Enum
@@ -40,7 +40,7 @@ class GeoDataNetworkParser(NetworkParser):
         ret_val = {}
         for index, building in geo_df_bag_data.iterrows():
             if building["gebruiksdoel"] is not None and "woonfunctie" in building["gebruiksdoel"].lower():
-                nearest_index = geo_df_lv_lines.sindex.nearest(building.geometry, max_distance=Constants.MAX_DISTANCE_BUILDING_TO_LV_CABLE)
+                nearest_index = geo_df_lv_lines.sindex.nearest(building.geometry, max_distance=GeoDataMargins.MAX_DISTANCE_BUILDING_TO_LV_CABLE)
                 if nearest_index.size > 0:
                     line_string = geo_df_lv_lines.take(nearest_index[1]).geometry.iloc[0]
                     if line_string not in ret_val:
@@ -72,10 +72,9 @@ class GeoDataNetworkParser(NetworkParser):
     def _remove_connections_with_intersection_at_transformer(self, new_connections_indices : List[int], line_string : LineString):
         to_remove = []
         for index in new_connections_indices:
-            building_id = self.geo_df_bag_data.take([index]).iloc[0]["identificatie"]
             building = self.geo_df_bag_data.take([index]).iloc[0].geometry
             point_on_building, point_on_line = nearest_points(building, line_string)
-            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN)
+            nearest_lv_station = self.geo_df_lv_mv_station.sindex.query(point_on_line, predicate="dwithin", distance=GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN)
             if nearest_lv_station.size > 0:
                 to_remove.append(index)
         return np.setdiff1d(new_connections_indices, to_remove)
