@@ -44,6 +44,7 @@ class LvNetworkBuilder:
         return ret_val
 
     def _build_lv_network_recursive(self, network_graph : nx.Graph, navigation_line_string : NavigationLineString, last_added_node : int, from_node : int, visited_lines : List[NavigationLineString], loops_mapping : dict[Tuple[float, float], int]) -> int:
+        found_mv_station_connection = False
         if not any(visited_line.index == navigation_line_string.index for visited_line in visited_lines):
             visited_lines.append(navigation_line_string)
             edge_label = EdgeLabel(0, 0)
@@ -51,33 +52,40 @@ class LvNetworkBuilder:
             next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
             cleared = False
+            added_edges = []
+            added_nodes = []
 
             while len(next_navigation_line_strings) > 0:
                 if len(next_navigation_line_strings) > 1:
+                    last_added_node_new = last_added_node
                     # Case the line ending has multiple branches
                     common_points = self._extract_common_points(next_navigation_line_strings)
                     common_point = next((common_point for common_point in common_points if common_point in loops_mapping ), None)
                     if common_point != None:
                         # Case alogrithm has looped back to a point it has been before
                         network_graph.add_edge(from_node, loops_mapping[common_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
+                        added_edges.append((from_node, loops_mapping[common_point]))
                         if visited_lines[0].index in [next_navigation_line_string.index for next_navigation_line_string in next_navigation_line_strings]:
                             # Case alogrithm looped back to the starting point
                             next_navigation_line_strings.clear()
                     elif all(next_line_string_end_pair.line_string not in visited_lines for next_line_string_end_pair in next_navigation_line_strings):
                         # Case alogrithm has found a new intersection of lines
-                        last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
-                        from_node = last_added_node
+                        last_added_node_new = self._add_node_and_edge(network_graph, from_node, last_added_node_new, edge_label)
+                        LOGGER.info(f"Added edge {from_node}-{last_added_node_new} at intersection of LV lines with line index: {navigation_line_string.index}")
+                        added_edges.append((from_node, last_added_node_new))
+                        added_nodes.append(last_added_node_new)
+
+                        from_node = last_added_node_new
                         for common_point in common_points:
                             loops_mapping[common_point] = from_node
-
-                    found_mv_station_connection = False
-                    last_added_node_new = last_added_node
-                    for navigation_line_string in next_navigation_line_strings:
-                        prev_last_added_node = last_added_node
-                        last_added_node_new = self._build_lv_network_recursive(network_graph, navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
+                    # Just do one level of finding an mv station in connection branches
+                    for next_navigation_line_string in next_navigation_line_strings:
+                        prev_last_added_node = last_added_node_new
+                        last_added_node_new = self._build_lv_network_recursive(network_graph, next_navigation_line_string, last_added_node_new, from_node, visited_lines, loops_mapping)
                         if prev_last_added_node == last_added_node_new:
                             # Algorithm has found a branch that connects to a mv station
                             found_mv_station_connection = True
+
                     last_added_node = last_added_node if found_mv_station_connection else last_added_node_new
 
                     next_navigation_line_strings.clear()
@@ -90,12 +98,24 @@ class LvNetworkBuilder:
                     next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
             if len(next_navigation_line_strings) == 0 and not cleared and navigation_line_string.end_point not in loops_mapping.keys() and not self.parser.is_line_connected_to_mv_station(navigation_line_string):
-                # Case we have reached a dead end
+                # Case the algorithm has reached a dead end
                 connection_point = navigation_line_string.end_point
                 if connection_point in loops_mapping:
                     network_graph.add_edge(from_node, loops_mapping[connection_point], length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
+                    LOGGER.info(f"Added edge {from_node}-{loops_mapping[connection_point]} at intersection of LV lines.")
+                    added_edges.append((from_node, loops_mapping[connection_point]))
                 else:
                     last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
+                    LOGGER.info(f"Added edge {from_node}-{last_added_node} at intersection of LV lines.")
+                    added_edges.append((from_node, last_added_node))
+
+            if found_mv_station_connection:
+                for edge in added_edges:
+                    LOGGER.info(f"Removing edge {edge[0]}-{edge[1]} leading to MV station.")
+                    network_graph.remove_edge(edge[0], edge[1])
+                for node in added_nodes:
+                    network_graph.remove_node(node)
+                    loops_mapping = {point: graph_node for point, graph_node in loops_mapping.items() if node != graph_node}
 
         return last_added_node
 
