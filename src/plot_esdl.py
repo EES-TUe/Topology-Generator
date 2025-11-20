@@ -8,5 +8,8 @@ for file in os.listdir(base_path):
     file_path = os.path.join(base_path, file)
     esdl_parser = EsdlNetworkParser(esdl_path=file_path)
     full_network_plotter = NetworkPlotter(1,1)
-    full_network_plotter.plot_mv_network_with_lv_network(esdl_parser.all_mv_lines, esdl_parser.all_lv_lines + esdl_parser.lines_to_homes_line_strings)
+    lines_to_exclude = ["MV_Cable215", "MV_Cable188", "MV_Cable204", "MV_Cable281", "MV_Cable277", "MV_Cable197"]
+    line_strings_to_exclude = [esdl_parser.mv_line_string_meta_data[line] for line in lines_to_exclude if line in esdl_parser.mv_line_string_meta_data]
+    mv_lines_to_plot = [line for line in esdl_parser.all_mv_lines if line not in line_strings_to_exclude]
+    full_network_plotter.plot_mv_network_with_lv_network(mv_lines_to_plot, esdl_parser.all_lv_lines + esdl_parser.lines_to_homes_line_strings)
     full_network_plotter.show_plot()

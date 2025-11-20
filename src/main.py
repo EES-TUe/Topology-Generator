@@ -96,8 +96,8 @@ def main():
     #     point.lat = wsg84_lat
     #     point.lon = wsg_84_long
     #     point.CRS = "WGS84"
-    # esh = EnergySystemHandler(mv_network)
-    # esh.save("mv-energy-system.esdl")
+    esh = EnergySystemHandler(mv_network)
+    esh.save("mv-energy-system.esdl")
     # for i in range(0,2):
     #     energy_system_output = bla.build_mv_energy_system(mv_network)
     #     esh = EnergySystemHandler(energy_system_output.energy_system)

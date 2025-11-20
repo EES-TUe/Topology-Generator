@@ -31,6 +31,7 @@ class EsdlNetworkParser(NetworkParser):
         self.cables : List[esdl.ElectricityCable] = []
         self.transformers : List[esdl.Transformer] = []
         self.transformer_touch_margin = 0.00000001
+        self.mv_line_string_meta_data : dict[str, LineString] = {}
         super().__init__()
         self._init_transformer_mapping()
 
@@ -79,6 +80,7 @@ class EsdlNetworkParser(NetworkParser):
             if "mv_cable" in cable.name.lower():
                 new_line_string = self._convert_electricity_cable_to_linestring(cable)
                 ret_val.append(new_line_string)
+                self.mv_line_string_meta_data[cable.name] = new_line_string
         return ret_val
 
     def _init_generic_collections(self) -> dict[esdl.ElectricityCable, MetaDataESDLCable]:

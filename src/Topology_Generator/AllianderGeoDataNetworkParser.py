@@ -125,8 +125,8 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
     
     def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for station in self.geo_df_lv_stations.geometry:
-            if dwithin(station, point, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN):
-                return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, Constants.LV_CABLES_TO_MV_LV_STATION_MARGIN, station)
+            if dwithin(station, point, Constants.LV_CABLES_TO_LV_STATION_MARGIN):
+                return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, Constants.LV_CABLES_TO_LV_STATION_MARGIN, station)
         return []
 
     def extract_mv_lines_that_are_connected_at_point(self, point : Point):
