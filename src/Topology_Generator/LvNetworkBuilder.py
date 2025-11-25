@@ -4,34 +4,22 @@ from shapely import STRtree, Point
 import networkx as nx
 from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions, NavigationLineString
-from Topology_Generator.LsCableProperties import LsCableParameters
 from Topology_Generator.NetworkParser import NetworkParser
 from Topology_Generator.Logging import LOGGER
-from dataclasses import dataclass
 
 from Topology_Generator.dataclasses import EdgeLabel, NetworkTopologyInfo
 
-@dataclass
-class RecursiveLvNetworkBuildResult:
-    last_added_node : int
-    found_mv_station_connection : bool
-    added_edges : List[Tuple[int, int]]
-    added_nodes : List[int]
 
 class LvNetworkBuilder:
     def __init__(self, parser : NetworkParser):
         self.str_tree_lines : STRtree = parser.str_tree_lv_lines
         self.filter_lv_lines_connected_to_mv_lines = isinstance(parser, EsdlNetworkParser)
         self.parser = parser
-        lv_main_cable_types : List[LsCableParameters] = [
-            LsCableParameters(240, 0.206, 0.079)
-        ]
 
     def _add_node_and_edge(self, network_graph : nx.Graph, from_node : int, last_added_node : int, edge_label : EdgeLabel) -> int:
         last_added_node += 1
         network_graph.add_node(last_added_node)
         network_graph.add_edge(from_node, last_added_node, length=edge_label.length, amount_of_connections=edge_label.amount_of_connections, houses=edge_label.houses_bordering_line, line_strings=edge_label.line_strings)
-        edge_label.meets_voltage_drop_requirements = False # TODO: replace with actual check
 
         return last_added_node
 
@@ -43,20 +31,48 @@ class LvNetworkBuilder:
         return ret_val
     
     def get_next_lines_lv_network(self, next_line_string_end_pair : NavigationLineString) -> List[NavigationLineString]:
+        ret_val = self.get_next_connected_lines(next_line_string_end_pair)
+        if ret_val == []:
+            ret_val = self.get_next_lines_connected_to_lv_station(next_line_string_end_pair)
+        return ret_val
+
+    def get_next_connected_lines(self, next_line_string_end_pair):
         new_lines = GeometryHelperFunctions.get_next_lines(self.str_tree_lines, next_line_string_end_pair)
         point_of_potential_station = next_line_string_end_pair.end_point
         ret_val = new_lines
         if self.filter_lv_lines_connected_to_mv_lines:
             lines_connected_to_transformer = self.parser.extract_lv_lines_connected_to_mv_lv_station_at_point(Point(point_of_potential_station))
             ret_val = [new_line for new_line in new_lines if new_line not in lines_connected_to_transformer]
-        if ret_val == []:
-            ret_val = self.parser.extract_lv_lines_connected_to_lv_station_at_point(Point(point_of_potential_station))
-            ret_val = [value for value in ret_val if value.index != next_line_string_end_pair.index]
+        return ret_val
+
+
+    def get_connected_lines_til_end(self, next_line_string_end_pair : NavigationLineString) -> List[NavigationLineString]:
+        ret_val = []
+        next_connected_lines = self.get_next_connected_lines(next_line_string_end_pair)
+        ret_val.extend(next_connected_lines)
+        while len(next_connected_lines) > 0:
+            new_next_connected_lines = []
+            for line in next_connected_lines:
+                new_next_connected_lines.extend(self.get_next_connected_lines(line))
+            ret_val.extend(new_next_connected_lines)
+            next_connected_lines = new_next_connected_lines # does not work because values are references
+        return ret_val
+
+
+    def get_next_lines_connected_to_lv_station(self, next_line_string_end_pair : NavigationLineString) -> List[NavigationLineString]:
+        point_of_potential_station = next_line_string_end_pair.end_point
+        ret_val = self.parser.extract_lv_lines_connected_to_lv_station_at_point(Point(point_of_potential_station))
+        ret_val = [value for value in ret_val if value.index != next_line_string_end_pair.index]
+        all_next_lines = []
+
+        for line in ret_val:
+            all_next_lines.extend(self.get_connected_lines_til_end(line))
+        if any(self.parser.is_line_connected_to_mv_station(line) for line in all_next_lines):
+            ret_val = []
 
         return ret_val
 
-    def _build_lv_network_recursive(self, network_graph : nx.Graph, navigation_line_string : NavigationLineString, last_added_node : int, from_node : int, visited_lines : List[NavigationLineString], loops_mapping : dict[Tuple[float, float], int]) -> RecursiveLvNetworkBuildResult:
-        found_mv_station_connection = False
+    def _build_lv_network_recursive(self, network_graph : nx.Graph, navigation_line_string : NavigationLineString, last_added_node : int, from_node : int, visited_lines : List[NavigationLineString], loops_mapping : dict[Tuple[float, float], int]) -> int:
         if not any(visited_line.index == navigation_line_string.index for visited_line in visited_lines):
             visited_lines.append(navigation_line_string)
             edge_label = EdgeLabel(0, 0)
@@ -64,8 +80,6 @@ class LvNetworkBuilder:
             next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
             cleared = False
-            added_edges = []
-            added_nodes = []
 
             while len(next_navigation_line_strings) > 0:
                 if len(next_navigation_line_strings) > 1:
@@ -81,27 +95,12 @@ class LvNetworkBuilder:
                     elif all(next_line_string_end_pair.line_string not in visited_lines for next_line_string_end_pair in next_navigation_line_strings):
                         # Case alogrithm has found a new intersection of lines
                         last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
-
                         from_node = last_added_node
                         for common_point in common_points:
                             loops_mapping[common_point] = from_node
 
-                    mv_station_in_recursion = False
-                    added_edges_in_recursion = []
-                    added_nodes_in_recursion = []
-                    for next_navigation_line_string in next_navigation_line_strings:
-                        result = self._build_lv_network_recursive(network_graph, next_navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
-                        last_added_node = result.last_added_node
-                        added_edges_in_recursion.extend(result.added_edges)
-                        added_nodes_in_recursion.extend(result.added_nodes)
-                        mv_station_in_recursion = mv_station_in_recursion or result.found_mv_station_connection
-
-                    if mv_station_in_recursion:
-                        # Check for added edges if they comply with the voltage drop requirements
-                        # If not remove them from the graph
-                        pass
-
-
+                    for navigation_line_string in next_navigation_line_strings:
+                        last_added_node = self._build_lv_network_recursive(network_graph, navigation_line_string, last_added_node, from_node, visited_lines, loops_mapping)
                     next_navigation_line_strings.clear()
                     cleared = True
                 elif len(next_navigation_line_strings) == 1:
@@ -111,13 +110,11 @@ class LvNetworkBuilder:
                     self._update_line_labels(navigation_line_string, edge_label)
                     next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string)
 
-            found_mv_station_connection = self.parser.is_line_connected_to_mv_station(navigation_line_string)
-            if len(next_navigation_line_strings) == 0 and not cleared and not found_mv_station_connection:
-                # Case the algorithm has reached a dead end
+            if len(next_navigation_line_strings) == 0 and not cleared and navigation_line_string.end_point not in loops_mapping.keys() and not self.parser.is_line_connected_to_mv_station(navigation_line_string):
+                # Case we have reached a dead end
                 last_added_node = self._add_node_and_edge(network_graph, from_node, last_added_node, edge_label)
-                LOGGER.info(f"Added edge {from_node}-{last_added_node} at intersection of LV lines.")
 
-        return RecursiveLvNetworkBuildResult(last_added_node, found_mv_station_connection, added_edges, added_nodes)
+        return last_added_node
 
     def _update_line_labels(self, navigation_line_string : NavigationLineString, edge_label : EdgeLabel) -> EdgeLabel:
         edge_label.length += self.parser.get_line_length_from_metadata(navigation_line_string.line_string)

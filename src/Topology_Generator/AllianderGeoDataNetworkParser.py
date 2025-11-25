@@ -32,24 +32,6 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
         for navigation_line_string in to_clean:
             if navigation_line_string in ret_val:
                 ret_val.remove(navigation_line_string)
-
-    def extract_lines_connected_to_2d_entity2(self, str_tree_lines : STRtree, touch_margin : float, station : Point) -> List[NavigationLineString]:
-        ret_val = []
-        line_indices = str_tree_lines.query(station, 'dwithin', touch_margin)
-        for index in line_indices:
-            line = str_tree_lines.geometries.take(index)
-
-            first_point_touches_station = GeometryHelperFunctions.points_are_close(line.coords[0], (station.x, station.y), touch_margin) 
-            last_point_touches_station = GeometryHelperFunctions.points_are_close(line.coords[-1], (station.x, station.y), touch_margin) 
-            if first_point_touches_station and last_point_touches_station:
-                dis_station_first_coord = distance(Point(line.coords[0]), station)
-                dis_station_last_coord = distance(Point(line.coords[-1]), station)
-                ret_val.append(NavigationLineString(line, dis_station_first_coord > dis_station_last_coord, index))
-            elif first_point_touches_station or last_point_touches_station:
-                ret_val.append(NavigationLineString(line, not first_point_touches_station, index))
-
-        self.remove_duplicate_and_non_connected_lines(station, ret_val)
-        return ret_val
     
     def extract_lines_connected_to_2d_entity_one_side_connected(self, str_tree_lines : STRtree, touch_margin : float, station : Point) -> List[NavigationLineString]:
         ret_val = []

@@ -1,12 +1,11 @@
 import uuid
+import matplotlib.pyplot as plt
 from esdl import EnergySystem, esdl
-from Topology_Generator import Constants
-from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import LineToHomeInput, NavigationLineString, NetworkTopologyInfo
+from Topology_Generator.dataclasses import LineToHomeInput,NetworkTopologyInfo
 from typing import List
 from shapely import Point, LineString, distance, STRtree, dwithin
 from shapely.ops import nearest_points
@@ -218,17 +217,54 @@ class MvEnergySystemBuilder:
         lv_assets.append(joint_to_connect_to)
         lv_assets.append(part_cable)
         return joint_to_connect_to
+    
+
+    
+    def mean_absolute_percentage_error(self, y_true, y_pred) -> tuple[float, float, float]:
+        if len(y_true) != len(y_pred):
+            raise ValueError("Both arrays must have the same length.")
+        
+        y_true = [float(val) for val in y_true]
+        y_pred = [float(val) for val in y_pred]
+        
+        # Avoid division by zero
+        if any(val == 0 for val in y_true):
+            raise ValueError("Actual values (y_true) cannot contain zeros.")
+        
+        errors = [abs((yt - yp) / yt) for yt, yp in zip(y_true, y_pred)]
+        plt.boxplot(errors)
+        plt.show()
+
+        return sum(errors) / len(errors) * 100, min(errors) * 100, max(errors) * 100
+
 
 
     def print_network_statistics(self, mv_network : EnergySystem, amount_of_connections_transformer : dict):
+        actual_amount_of_connections_per_transformer = {
+            "transformer10": 400,
+            "transformer14": 195,
+            "transformer27": 278,
+            "transformer44": 172,
+            "transformer51": 162,
+            "transformer63": 134,
+            "transformer68": 144,
+            "transformer73": 210,
+            "transformer80": 281,
+            "transformer84": 169,
+            "transformer91": 256 
+        }
         assets = mv_network.instance[0].area.asset
         cables = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.ElectricityCable)
         joints = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Joint)
         transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
         buildings = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Building)
+        mean_absolute_percentage_error_connections, min_error, max_error = self.mean_absolute_percentage_error(actual_amount_of_connections_per_transformer.values(), amount_of_connections_transformer.values())
         LOGGER.info(f"Number of cables: {len(cables)}")
         LOGGER.info(f"Number of joints: {len(joints)}")
         LOGGER.info(f"Number of transformers: {len(transformers)}")
+        LOGGER.info(f"Mean Absolute Percentage Error of amount of connections per transformer: {mean_absolute_percentage_error_connections:.2f}%")
+        LOGGER.info(f"Min Absolute Percentage Error of amount of connections per transformer: {min_error:.2f}%")
+        LOGGER.info(f"Max Absolute Percentage Error of amount of connections per transformer: {max_error:.2f}%")
         LOGGER.info(f"Number of connections: {len(buildings)}")
         LOGGER.info(f"Amount of connections per transformer:")
         for transformer_name, amount_of_connections in amount_of_connections_transformer.items():
@@ -288,7 +324,7 @@ class MvEnergySystemBuilder:
                         amount_of_new_connections = len(EsdlHelperFunctions.get_all_esdl_objects_from_type(new_lv_assets, esdl.Building))
                         LOGGER.info(f"New connections in esdl: {amount_of_new_connections}")
                         lv_assets.extend(new_lv_assets)
-                        amount_of_connections_transformer[f"transformer{transformer.name}"] = amount_of_connections_transformer.get(f"transformer{transformer.name}", 0) + amount_of_new_connections
+                        amount_of_connections_transformer[f"{transformer.name}"] = amount_of_connections_transformer.get(f"{transformer.name}", 0) + amount_of_new_connections
                 self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
                 # EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
         self.print_network_statistics(mv_network, amount_of_connections_transformer)
