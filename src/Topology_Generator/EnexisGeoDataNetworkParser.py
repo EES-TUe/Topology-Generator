@@ -20,7 +20,7 @@ class EnexisGeoDataNetworkParser(GeoDataNetworkParser):
         return ret_val
     
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
-        for station in self.geo_df_lv_mv_station.geometry:
+        for i, station in enumerate(self.geo_df_lv_mv_station.geometry):
             touch_margin = 0.1
             if dwithin(station, point, touch_margin):
                 return self.extract_lines_connected_to_2d_entity(self.str_tree_lv_lines, touch_margin, station)

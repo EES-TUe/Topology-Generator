@@ -105,6 +105,11 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
                 return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_lv_lines, GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN, station)
         return []
     
+    def get_id_of_mv_lv_transformer_at_point(self, point : Point) -> int:
+        for i, station in enumerate(self.geo_df_lv_mv_station.geometry):
+            if dwithin(station, point, GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN):
+                return i
+    
     def extract_lv_lines_connected_to_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         if not self.geo_df_lv_stations.empty:
             for station in self.geo_df_lv_stations.geometry:
@@ -119,9 +124,10 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
     def is_line_connected_to_mv_station(self, navigation_line_string : NavigationLineString) -> bool:
         for station in self.geo_df_lv_mv_station.geometry:
             point = Point(navigation_line_string.end_point)
-            if dwithin(station, point, GeoDataMargins.MV_CABLES_TO_MV_LV_STATION_MARGIN) or dwithin(station, point, GeoDataMargins.MV_CABLES_TO_MV_LV_STATION_MARGIN):
+            if dwithin(station, point, GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN) or dwithin(station, point, GeoDataMargins.LV_CABLES_TO_MV_LV_STATION_MARGIN):
                 return True
         return False
+    
 
     def extract_lv_lines_connected_at_point(self, point : Point):
         return self.extract_lines_connected_to_2d_entity_include_both_sides_disconnected(self.str_tree_mv_lines, GeoDataMargins.MV_CABLES_TO_MV_LV_STATION_MARGIN, point)
