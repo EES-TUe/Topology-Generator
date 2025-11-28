@@ -166,15 +166,15 @@ class AllianderGeoDataNetworkParser(GeoDataNetworkParser):
     def define_mv_cable_type_based_on_year(self, building_year):
         building_year_category = self.builidng_year_to_building_year_category(building_year)
         cable_mapping = {
-            (GeneratorCableCase.THIN,  BuildingYearCategory.OLD) : "GPLK-Cu-35",
-            (GeneratorCableCase.AVG,   BuildingYearCategory.OLD) : "GPLK-Cu-70",
-            (GeneratorCableCase.THICK, BuildingYearCategory.OLD) : "GPLK-Cu-95",
-            (GeneratorCableCase.THIN,  BuildingYearCategory.AVG) : "GPLK-Al-50",
-            (GeneratorCableCase.AVG,   BuildingYearCategory.AVG) : "GPLK-Al-150",
-            (GeneratorCableCase.THICK, BuildingYearCategory.AVG) : "GPLK-Al-240",
-            (GeneratorCableCase.THIN,  BuildingYearCategory.NEW) : "XLPE-Al-95",
-            (GeneratorCableCase.AVG,   BuildingYearCategory.NEW) : "XLPE-Al-150",
-            (GeneratorCableCase.THICK, BuildingYearCategory.NEW) : "XLPE-Al-240",
+            (GeneratorCableCase.THIN,  BuildingYearCategory.OLD) : "GPLK_Cu_35",
+            (GeneratorCableCase.AVG,   BuildingYearCategory.OLD) : "GPLK_Cu_70",
+            (GeneratorCableCase.THICK, BuildingYearCategory.OLD) : "GPLK_Cu_95",
+            (GeneratorCableCase.THIN,  BuildingYearCategory.AVG) : "GPLK_Al_50",
+            (GeneratorCableCase.AVG,   BuildingYearCategory.AVG) : "GPLK_Al_150",
+            (GeneratorCableCase.THICK, BuildingYearCategory.AVG) : "GPLK_Al_240",
+            (GeneratorCableCase.THIN,  BuildingYearCategory.NEW) : "XLPE_Al_95",
+            (GeneratorCableCase.AVG,   BuildingYearCategory.NEW) : "XLPE_Al_150",
+            (GeneratorCableCase.THICK, BuildingYearCategory.NEW) : "XLPE_Al_240",
         }
         return cable_mapping[(self.mv_generator_cable_case, building_year_category)]
     

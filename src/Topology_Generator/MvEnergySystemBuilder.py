@@ -325,7 +325,7 @@ class MvEnergySystemBuilder:
                         LOGGER.info(f"New connections in esdl: {amount_of_new_connections}")
                         lv_assets.extend(new_lv_assets)
                         amount_of_connections_transformer[f"{transformer.name}"] = amount_of_connections_transformer.get(f"{transformer.name}", 0) + amount_of_new_connections
-                self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
-                # EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
+                # self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
+                EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
         self.print_network_statistics(mv_network, amount_of_connections_transformer)
         return mv_network
