@@ -1,7 +1,9 @@
 
 import pandas as pd
 import esdl
+from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
+from Topology_Generator.EsdlNetworkParser import EsdlNetworkParser
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.MvEnergySystemBuilder import MvEnergySystemBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
@@ -23,14 +25,14 @@ def normalize(arr, t_min, t_max):
 
 def main():
 
-    x_bottom_left = 157384
-    y_bottom_left = 432937
-    x_top_right = 159319
-    y_top_right = 434915
-    # x_bottom_left = 187180
-    # y_bottom_left = 548389
-    # x_top_right = 18536
-    # y_top_right = 552992
+    # x_bottom_left = 157384
+    # y_bottom_left = 432937
+    # x_top_right = 159319
+    # y_top_right = 434915
+    x_bottom_left = 184874
+    y_bottom_left = 551369
+    x_top_right = 189478
+    y_top_right = 556048
 
     # Full network
     # for file in os.listdir("C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned"):
@@ -66,7 +68,7 @@ def main():
     geo_df_mv_kabels : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='middenspanningskabels', bbox=bbox)
     geo_df_hv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='onderstations', bbox=bbox)
     geo_df_lv_stations : geopandas.GeoDataFrame = geopandas.read_file(lv_lines_gpkg, layer='laagspanningsverdeelkasten', bbox=bbox)
-    generator_cable_case_mv_lines = GeneratorCableCase.AVG
+    generator_cable_case_mv_lines = GeneratorCableCase.THICK
     network_parser = AllianderGeoDataNetworkParser(geo_df_lv_lines, geo_df_mv_lv_stations, geo_df_bag_data, geo_df_mv_kabels, geo_df_hv_stations, geo_df_lv_stations, generator_cable_case_mv_lines)
 
 
@@ -83,10 +85,9 @@ def main():
     # network_parser = EnexisGeoDataNetworkParser(geo_df_lv_lines, geo_df_mv_lv_stations)
     
     mv_network_builder = MvNetworkBuilder(network_parser, x_bottom_left, y_bottom_left, x_top_right, y_top_right)
-    generator_cable_case_mv_lines = GeneratorCableCase.AVG
     # mv_network = None
     for i in range(0, 1):
-        mv_network = mv_network_builder.generate_a_mv_network("To-look-at")
+        mv_network = mv_network_builder.generate_a_mv_network("Oudehaske", True)
         mv_network_builder.plot_mv_network(mv_network)
 
     bla = MvEnergySystemBuilder(lv_network_builder, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
@@ -97,6 +98,10 @@ def main():
     #     point.lon = wsg_84_long
     #     point.CRS = "WGS84"
     esh = EnergySystemHandler(mv_network)
+    network_plotter = NetworkPlotter(1,1)
+    full_network_esdl_parser = EsdlNetworkParser(energy_system=mv_network)
+    network_plotter.plot_mv_network_with_lv_network(full_network_esdl_parser.all_mv_lines, full_network_esdl_parser.all_lv_lines + full_network_esdl_parser.lines_to_homes_line_strings)
+    network_plotter.show_plot()
     esh.save("mv-energy-system.esdl")
     # for i in range(0,2):
     #     energy_system_output = bla.build_mv_energy_system(mv_network)
