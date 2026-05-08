@@ -25,14 +25,14 @@ def normalize(arr, t_min, t_max):
 
 def main():
 
-    # x_bottom_left = 157384
-    # y_bottom_left = 432937
-    # x_top_right = 159319
-    # y_top_right = 434915
-    x_bottom_left = 184874
-    y_bottom_left = 551369
-    x_top_right = 189478
-    y_top_right = 556048
+    x_bottom_left = 157384
+    y_bottom_left = 432937
+    x_top_right = 159319
+    y_top_right = 434915
+    # x_bottom_left = 184874
+    # y_bottom_left = 551369
+    # x_top_right = 189478
+    # y_top_right = 556048
 
     # Full network
     # for file in os.listdir("C:/Users/20180029/repos/Topology-Generator/Archetypes/Cleaned"):
@@ -87,7 +87,7 @@ def main():
     mv_network_builder = MvNetworkBuilder(network_parser, x_bottom_left, y_bottom_left, x_top_right, y_top_right)
     # mv_network = None
     for i in range(0, 1):
-        mv_network = mv_network_builder.generate_a_mv_network("Oudehaske", True)
+        mv_network = mv_network_builder.generate_a_mv_network("Oudehaske")
         mv_network_builder.plot_mv_network(mv_network)
 
     bla = MvEnergySystemBuilder(lv_network_builder, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
@@ -98,7 +98,7 @@ def main():
     #     point.lon = wsg_84_long
     #     point.CRS = "WGS84"
     esh = EnergySystemHandler(mv_network)
-    network_plotter = NetworkPlotter(1,1)
+    network_plotter = NetworkPlotter(1,1,False)
     full_network_esdl_parser = EsdlNetworkParser(energy_system=mv_network)
     network_plotter.plot_mv_network_with_lv_network(full_network_esdl_parser.all_mv_lines, full_network_esdl_parser.all_lv_lines + full_network_esdl_parser.lines_to_homes_line_strings)
     network_plotter.show_plot()

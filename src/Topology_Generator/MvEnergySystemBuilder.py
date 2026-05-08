@@ -103,17 +103,16 @@ class MvEnergySystemBuilder:
         return LineString([(point.lat, point.lon) for point in points])
     
 
-    def plot_line_strings(self, line_strings : List[LineString]):
-        test_plotter = NetworkPlotter(1,1)
-        test_plotter.plot_network(line_strings)
+    def plot_line_strings(self, line_strings : List[LineString], highlight_lines : List[LineString]=[]):
+        test_plotter = NetworkPlotter(1,1,False)
+        test_plotter.plot_mv_network_with_lv_network(highlight_lines, line_strings, mv_network_color='red', lv_network_color='blue')
         test_plotter.show_plot()
 
 
     def plot_intermediate_result(self, assets_to_plot : List[esdl.ConnectableAsset]):
-        line_strings = [self.list_of_points_to_linestring(cable.geometry.point) for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(assets_to_plot, esdl.ElectricityCable)]
-        test_plotter = NetworkPlotter(1,1)
-        test_plotter.plot_network(line_strings)
-        test_plotter.show_plot()
+        line_strings_to_home = [self.list_of_points_to_linestring(cable.geometry.point) for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(assets_to_plot, esdl.ElectricityCable) if "_to_" in cable.name ]
+        line_strings_feeder = [self.list_of_points_to_linestring(cable.geometry.point) for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(assets_to_plot, esdl.ElectricityCable) if "_to_" not in cable.name ]
+        self.plot_line_strings(line_strings_to_home, line_strings_feeder)
 
 
     def plot_mv_and_lv_network(self, assets_to_plot : List[esdl.ConnectableAsset]):
@@ -223,15 +222,15 @@ class MvEnergySystemBuilder:
     def mean_absolute_percentage_error(self, y_true, y_pred) -> tuple[float, float, float]:
         if len(y_true) != len(y_pred):
             raise ValueError("Both arrays must have the same length.")
-        
+
         y_true = [float(val) for val in y_true]
         y_pred = [float(val) for val in y_pred]
-        
+
         # Avoid division by zero
         if any(val == 0 for val in y_true):
             raise ValueError("Actual values (y_true) cannot contain zeros.")
-        
-        errors = [abs((yt - yp) / yt) for yt, yp in zip(y_true, y_pred)]
+
+        errors = [abs(yt - yp) for yt, yp in zip(y_true, y_pred)]
         plt.boxplot(errors)
         plt.show()
 
@@ -258,13 +257,13 @@ class MvEnergySystemBuilder:
         joints = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Joint)
         transformers = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
         buildings = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Building)
-        mean_absolute_percentage_error_connections, min_error, max_error = self.mean_absolute_percentage_error(actual_amount_of_connections_per_transformer.values(), amount_of_connections_transformer.values())
+        # mean_absolute_percentage_error_connections, min_error, max_error = self.mean_absolute_percentage_error(actual_amount_of_connections_per_transformer.values(), amount_of_connections_transformer.values())
         LOGGER.info(f"Number of cables: {len(cables)}")
         LOGGER.info(f"Number of joints: {len(joints)}")
         LOGGER.info(f"Number of transformers: {len(transformers)}")
-        LOGGER.info(f"Mean Absolute Percentage Error of amount of connections per transformer: {mean_absolute_percentage_error_connections:.2f}%")
-        LOGGER.info(f"Min Absolute Percentage Error of amount of connections per transformer: {min_error:.2f}%")
-        LOGGER.info(f"Max Absolute Percentage Error of amount of connections per transformer: {max_error:.2f}%")
+        # LOGGER.info(f"Mean Absolute Percentage Error of amount of connections per transformer: {mean_absolute_percentage_error_connections:.2f}%")
+        # LOGGER.info(f"Min Absolute Percentage Error of amount of connections per transformer: {min_error:.2f}%")
+        # LOGGER.info(f"Max Absolute Percentage Error of amount of connections per transformer: {max_error:.2f}%")
         LOGGER.info(f"Number of connections: {len(buildings)}")
         LOGGER.info(f"Amount of connections per transformer:")
         for transformer_name, amount_of_connections in amount_of_connections_transformer.items():
@@ -308,10 +307,15 @@ class MvEnergySystemBuilder:
         assets = mv_network.instance[0].area.asset
         transfomers : List[esdl.Transformer] = EsdlHelperFunctions.get_all_esdl_objects_from_type(assets, esdl.Transformer)
         amount_of_connections_transformer = {}
+        first_lines_saved = False
         for transformer in transfomers:
             LOGGER.debug(f"Next transformer at point: {(transformer.geometry.lat, transformer.geometry.lon)}")
             transfomer_point = Point(transformer.geometry.lat, transformer.geometry.lon)
             network_topology_infos = self.lv_network_builder.extract_lv_networks_and_topologies_at_point(transfomer_point)
+            all_lv_lines = [network_line.line_string for info in network_topology_infos[2:] for network_line in info.network_lines]
+            all_lv_lines.extend( [network_line.line_string for info in network_topology_infos[:1] for network_line in info.network_lines])
+            first_lv_network_string = [network_line.line_string for info in network_topology_infos[1:2] for network_line in info.network_lines]
+            # self.plot_line_strings(all_lv_lines, first_lv_network_string)
             if len(network_topology_infos) > 0:
                 archetype = self.archetype_handler.archetype_at_point(transfomer_point)
                 LOGGER.info(f"LV grid archetype: {archetype}")
@@ -327,5 +331,9 @@ class MvEnergySystemBuilder:
                         amount_of_connections_transformer[f"{transformer.name}"] = amount_of_connections_transformer.get(f"{transformer.name}", 0) + amount_of_new_connections
                 # self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
                 EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
-        self.print_network_statistics(mv_network, amount_of_connections_transformer)
+                # all_lv_lines = [self.list_of_points_to_linestring(cable.geometry.point) for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(lv_assets, esdl.ElectricityCable)]
+
+                # self.plot_line_strings(all_lv_lines, first_lv_network_string)
+        
+        # self.print_network_statistics(mv_network, amount_of_connections_transformer)
         return mv_network

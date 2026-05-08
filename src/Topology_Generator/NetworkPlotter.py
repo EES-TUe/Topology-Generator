@@ -56,8 +56,8 @@ class NetworkPlotter:
 
     def plot_mv_network_with_lv_network(self, mv_network_lines : List[LineString], lv_network_lines : List[LineString], mv_network_color : str = "blue", lv_network_color : str = "red"):
         self._add_subplot()
-        self.plot_lines(mv_network_color, mv_network_lines, False, True)
         self.plot_lines(lv_network_color, lv_network_lines, False, True)
+        self.plot_lines(mv_network_color, mv_network_lines, False, True)
 
     def plot_network(self, lv_network_lines : List[LineString], mv_lv_station : Polygon = None, with_line_numbers = False, without_axis_numbers = False, network_color : str = 'blue'):
         self._add_subplot()

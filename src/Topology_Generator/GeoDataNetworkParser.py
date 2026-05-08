@@ -45,7 +45,7 @@ class GeoDataNetworkParser(NetworkParser):
                     line_string = geo_df_lv_lines.take(nearest_index[1]).geometry.iloc[0]
                     if line_string not in ret_val:
                         ret_val[line_string] = []
-                ret_val[line_string].append(index)
+                    ret_val[line_string].append(index)
         return ret_val
 
     def _add_line(self, lines : List[LineString], new_line : LineString):
@@ -91,11 +91,6 @@ class GeoDataNetworkParser(NetworkParser):
                 ret_val.append(building)
         return ret_val
 
-
-    def is_there_industry_at_point(self, point : Point) -> bool:
-        MAX_DISTANCE_TO_POINT = 12.0
-        indices = self.geo_df_bag_data.sindex.query(point, predicate="dwithin", distance=MAX_DISTANCE_TO_POINT)
-        return any("industriefunctie" in self.geo_df_bag_data.take(index)["gebruiksdoel"] for index in indices)
 
     def get_building_year_of_building_at_point(self, point : Point)  -> int:
         if not self.geo_df_bag_data.empty:
