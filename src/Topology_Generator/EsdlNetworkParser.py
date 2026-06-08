@@ -181,5 +181,6 @@ class EsdlNetworkParser(NetworkParser):
                 new_line_string = self._convert_electricity_cable_to_linestring(cable)
                 if new_line_string not in ret_val:
                     ret_val.append(new_line_string)
-                    self.line_string_meta_data[new_line_string] = esdl_obj_meta_data[cable] if cable in esdl_obj_meta_data.keys() else MetaDataESDLCable(cable, 0, [cable.port[0].connectedTo[0].eContainer(), cable.port[1].connectedTo[0].eContainer()])
+                    LOGGER.info(cable.name)
+                    self.line_string_meta_data[new_line_string] = esdl_obj_meta_data[cable] if cable in esdl_obj_meta_data else MetaDataESDLCable(cable, 0, [cable.port[0].connectedTo[0].eContainer(), cable.port[1].connectedTo[0].eContainer()])
         return ret_val

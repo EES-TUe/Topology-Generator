@@ -39,7 +39,7 @@ class GeoDataNetworkParser(NetworkParser):
     def init_line_building_mapping(self, geo_df_lv_lines : geopandas.GeoDataFrame, geo_df_bag_data : geopandas.GeoDataFrame):
         ret_val = {}
         for index, building in geo_df_bag_data.iterrows():
-            if building["gebruiksdoel"] is not None and "woonfunctie" in building["gebruiksdoel"].lower():
+            if building["gebruiksdoel"] is not None and "woonfunctie" in str(building["gebruiksdoel"]).lower():
                 nearest_index = geo_df_lv_lines.sindex.nearest(building.geometry, max_distance=GeoDataMargins.MAX_DISTANCE_BUILDING_TO_LV_CABLE)
                 if nearest_index.size > 0:
                     line_string = geo_df_lv_lines.take(nearest_index[1]).geometry.iloc[0]

@@ -125,7 +125,7 @@ class LvNetworkBuilder:
                     self._update_line_labels(navigation_line_string, edge_label)
                     next_navigation_line_strings = self.get_next_lines_lv_network(navigation_line_string, params.station_point)
 
-            if len(next_navigation_line_strings) == 0 and not cleared and navigation_line_string.end_point not in params.loops_mapping.keys() and not self.parser.is_line_connected_to_mv_station(navigation_line_string):
+            if len(next_navigation_line_strings) == 0 and not cleared and navigation_line_string.end_point not in params.loops_mapping and not self.parser.is_line_connected_to_mv_station(navigation_line_string):
                 # Case we have reached a dead end
                 params.last_added_node = self._add_node_and_edge(params.network_graph, params.from_node, params.last_added_node, edge_label)
 

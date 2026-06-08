@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime
 from pyproj import Transformer
 from pyproj import CRS
+from shapely import LineString
 
 class EsdlHelperFunctions:
 
@@ -35,6 +36,18 @@ class EsdlHelperFunctions:
         transformer = Transformer.from_crs("EPSG:28992", "EPSG:4326")
         wgs84_lat, wgs84_long = transformer.transform(lat, long)
         return wgs84_lat, wgs84_long
+    
+
+    @staticmethod
+    def generate_new_electricity_cable(cable_name : str, asset_type : str, points_for_cable : List[tuple[float, float]]):
+        part_cable = esdl.ElectricityCable(name=cable_name, length=LineString(points_for_cable).length, id=str(uuid.uuid4()), assetType=asset_type)
+        part_cable.geometry = esdl.Line()
+        for point in points_for_cable:
+            part_cable.geometry.point.append(EsdlHelperFunctions.generate_esdl_point(point[0], point[1]))
+
+        part_cable.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
+        part_cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
+        return part_cable
 
 
     @staticmethod 

@@ -1,13 +1,15 @@
 import uuid
 import matplotlib.pyplot as plt
-from esdl import EnergySystem, esdl
+from esdl import EnergySystem, Polygon, esdl
+from networkx import Graph
+import numpy as np
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.NetworkPlotter import NetworkPlotter
 from Topology_Generator.dataclasses import LineToHomeInput,NetworkTopologyInfo
 from typing import List
-from shapely import Point, LineString, distance, STRtree, dwithin
+from shapely import Point, LineString, Polygon, distance, STRtree, dwithin
 from shapely.ops import nearest_points
 from Topology_Generator.Logging import LOGGER
 from esdl.esdl_handler import EnergySystemHandler
@@ -21,17 +23,59 @@ class MvEnergySystemBuilder:
         self.home_counter = 1
 
 
-    def generate_esdl_homes(self, coords : tuple[float, float], amount_of_homes : int, archetype : int) -> List[esdl.Building]:
+    def generate_esdl_homes(self, coords : tuple[float, float], amount_of_homes : int, archetype : int, transformer_prefix : str) -> List[esdl.Building]:
         ret_val = []
         for i in range(0, amount_of_homes):
-            esdl_home = self.generate_esdl_home(coords, archetype)
+            esdl_home = self.generate_esdl_home(coords, archetype, transformer_prefix)
             ret_val.append(esdl_home)
         return ret_val
 
+    def determine_home_type(self, building_year : int, current_house_index : int, neigbourhood_graph : Graph):
+        
+        def three_point_collinear(p_middle, p_a, p_b, tol=0.02, diag_ref=100):
+            # distance from middle to line(a,b)
+            p_middle = np.array(p_middle)
+            p_a = np.array(p_a)
+            p_b = np.array(p_b)
+            line_vec = p_b - p_a
+            if np.allclose(line_vec, 0):
+                return False
+            area2 = np.abs(np.cross(line_vec, p_middle - p_a))
+            base_len = np.linalg.norm(line_vec)
+            dist = area2 / base_len
+            # dynamic threshold: a small absolute value or fraction of reference diag
+            threshold = max(5.0, diag_ref * tol)
+            return dist <= threshold
+        
+        current_house : Polygon = neigbourhood_graph.nodes[current_house_index]["geometry"]
+        neigbours_iterator = neigbourhood_graph.neighbors(current_house_index)
+        neigbours : List[Polygon] = []
+        for neigbour in neigbours_iterator:
+            neigbour_geometry = neigbourhood_graph.nodes[neigbour]["geometry"]
+            neigbours.append(neigbour_geometry)
 
-    def generate_esdl_home(self, coords : tuple[float, float], archetype : int) -> esdl.Building:
+        type = ""
+        # aantal_verblijfsobjecten = 5
+        if len(neigbours) == 0: # and aantal_verblijfsobjecten <= 1:
+            type = "vrijstaand"
+        elif len(neigbours) == 1:
+            type = "2-onder-1-kap"
+        elif len(neigbours) >= 2:
+            for i in range(len(neigbours)):
+                for j in range(i, len(neigbours)):
+                    if three_point_collinear(current_house.centroid.coords[0], neigbours[i].centroid.coords[0], neigbours[j].centroid.coords[0]):
+                        type = "rijtjeshuis"
+
+        # if 1 < aantal_verblijfsobjecten < 5:
+        #     type = "massionette"
+        # elif aantal_verblijfsobjecten >= 5:
+        #     type = "appartement"
+
+        return type
+
+    def generate_esdl_home(self, coords : tuple[float, float], archetype : int, transformer_prefix : str) -> esdl.Building:
         building_point = EsdlHelperFunctions.generate_esdl_point(coords[0], coords[1])
-        name = f"home_{self.home_counter}_arch{archetype}"
+        name = f"{transformer_prefix}_home_{self.home_counter}_arch{archetype}"
         building = esdl.Building(name=name, id=str(uuid.uuid4()))
         building.geometry = building_point
         e_connection = esdl.EConnection(name=name, id=str(uuid.uuid4()))
@@ -79,7 +123,7 @@ class MvEnergySystemBuilder:
             if amount_of_connections == 0:
                 amount_of_connections = 1
             archetype = self.archetype_handler.archetype_at_point(point_on_building)
-            esdl_buildings = self.generate_esdl_homes(new_linestring_to_home.coords[-1], amount_of_connections, archetype)
+            esdl_buildings = self.generate_esdl_homes(new_linestring_to_home.coords[-1], amount_of_connections, archetype, transformer_prefix)
             for esdl_building in esdl_buildings:
                 name = f"lv_cable_{transformer_prefix}_to_{esdl_building.name}"
                 length = new_linestring_to_home.length if new_linestring_to_home.length > 0.0 else 1.0
@@ -191,7 +235,6 @@ class MvEnergySystemBuilder:
                         points_for_cable.append(point_b)
                         last_joint = self.generate_cable_and_joint(f"lv_cable_{transformer_prefix}_{joint_and_cable_number}_main_grid", f"lv_node_{transformer_prefix}_{joint_and_cable_number}", points_for_cable, last_joint, lv_assets)
 
-        # self.plot_intermediate_result(lv_assets)
         return lv_assets
 
 
@@ -201,13 +244,7 @@ class MvEnergySystemBuilder:
         joint_to_connect_to.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         joint_to_connect_to.geometry = EsdlHelperFunctions.generate_esdl_point(points_for_cable[-1][0], points_for_cable[-1][1])
 
-        part_cable = esdl.ElectricityCable(name=cable_name, length=LineString(points_for_cable).length, id=str(uuid.uuid4()), assetType="lv_line")
-        part_cable.geometry = esdl.Line()
-        for point in points_for_cable:
-            part_cable.geometry.point.append(EsdlHelperFunctions.generate_esdl_point(point[0], point[1]))
-
-        part_cable.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
-        part_cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
+        part_cable = EsdlHelperFunctions.generate_new_electricity_cable(cable_name, "lv_line", points_for_cable)
         part_cable.port[1].connectedTo.append(joint_to_connect_to.port[0])
         joint_to_connect_to.port[0].connectedTo.append(part_cable.port[1])
         part_cable.port[0].connectedTo.append(last_joint.port[1])
@@ -315,7 +352,6 @@ class MvEnergySystemBuilder:
             all_lv_lines = [network_line.line_string for info in network_topology_infos[2:] for network_line in info.network_lines]
             all_lv_lines.extend( [network_line.line_string for info in network_topology_infos[:1] for network_line in info.network_lines])
             first_lv_network_string = [network_line.line_string for info in network_topology_infos[1:2] for network_line in info.network_lines]
-            # self.plot_line_strings(all_lv_lines, first_lv_network_string)
             if len(network_topology_infos) > 0:
                 archetype = self.archetype_handler.archetype_at_point(transfomer_point)
                 LOGGER.info(f"LV grid archetype: {archetype}")
@@ -329,11 +365,7 @@ class MvEnergySystemBuilder:
                         LOGGER.info(f"New connections in esdl: {amount_of_new_connections}")
                         lv_assets.extend(new_lv_assets)
                         amount_of_connections_transformer[f"{transformer.name}"] = amount_of_connections_transformer.get(f"{transformer.name}", 0) + amount_of_new_connections
-                # self.save_lv_network_as_energy_system(lv_assets, transformer, transformer.name, f"{transformer.name}.esdl")
                 EsdlHelperFunctions.add_new_assets_to_energy_system(mv_network, lv_assets)
-                # all_lv_lines = [self.list_of_points_to_linestring(cable.geometry.point) for cable in EsdlHelperFunctions.get_all_esdl_objects_from_type(lv_assets, esdl.ElectricityCable)]
 
-                # self.plot_line_strings(all_lv_lines, first_lv_network_string)
-        
-        # self.print_network_statistics(mv_network, amount_of_connections_transformer)
+
         return mv_network
