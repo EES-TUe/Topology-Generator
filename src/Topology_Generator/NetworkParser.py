@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 from shapely import STRtree, LineString, Point, Polygon
 
-from Topology_Generator.dataclasses import NavigationLineString
+from Topology_Generator.dataclasses import BuildingInformation, NavigationLineString
 
 @dataclass
 class StationStartingLinesContainer:
@@ -61,7 +61,7 @@ class NetworkParser:
     def get_amount_of_connections_bordering_line(self, line_string : LineString) -> int:
         return 0
     
-    def get_houses_bordering_line(self, line_string : LineString) -> List[Polygon]:
+    def get_houses_bordering_line(self, line_string : LineString) -> List[BuildingInformation]:
         return []
 
     def get_line_length_from_metadata(self, line_string : LineString) -> float:

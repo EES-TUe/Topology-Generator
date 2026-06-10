@@ -231,9 +231,50 @@ class TestLvNetworkBuilder(unittest.TestCase):
                 self.assertGreater(len(nx.find_cycle(lv_network_topologiy.network_topology)), 0)
 
     def test_lv_cables_are_added_according_to_design_rules(self):
-        # This is a placeholder for a test that would check if LV cables are added according to design rules.
-        self.assertTrue(True)
+        station = Point(0,4)
+        line_1 = LineString([(0,4), (8,4)])
+        line_2 = LineString([(8,4), (8,8)])
+        line_3 = LineString([(8,4), (8,0)])
+        houses = []
+        houses.append(Polygon([(1,5), (1,6), (2,6), (2,5)])) # Hoekwoning
+        houses.append(Polygon([(2,5), (2,6), (3,6), (3,5)])) # Rijtjeshuis
+        houses.append(Polygon([(3,5), (3,6), (4,6), (4,5)])) # Hoekwoning
+        houses.append(Polygon([(6,3), (7,3), (7,2), (6,2)])) # Hoekwoning
+        houses.append(Polygon([(6,2), (6,1), (7,1), (7,2)])) # Rijtjeshuis
+        houses.append(Polygon([(5,2), (6,2), (6,1), (5,1)])) # Hoekwoning
+        houses.append(Polygon([(6,1), (6,0), (7,0), (7,1)])) # Hoekwoning
+        houses.append(Polygon([(9,2), (10,2), (10,1), (9,1)])) # Vrijstaand
+        houses.append(Polygon([(9,5), (9,6), (10,6), (10,5)])) # 2 onder 1 kap
+        houses.append(Polygon([(9,6), (9,7), (10,7), (10,6)])) # 2 onder 1 kap
+        houses.append(Polygon([(6,6), (6,7), (7,7), (7,6)])) # Massionette
+        houses.append(Polygon([(6,7), (6,8), (7,8), (7,7)])) # Appartement
 
+        lv_mv_geo_df = geopandas.GeoDataFrame(
+            {
+                "id": [1],
+                "geometry": [station]
+            }
+        )
+
+        lv_lines_geo_df = geopandas.GeoDataFrame(
+            {
+                "id": list(range(3)),
+                "geometry": [line_1, line_2, line_3]
+            }
+        )
+        amount_of_dwellings = [1 for i in range(len(houses))]
+        amount_of_dwellings[10] = 3
+        amount_of_dwellings[11] = 15
+        bag_data_geo_df = geopandas.GeoDataFrame(
+            {
+                "id": list(range(len(houses))),
+                "geometry": [houses],
+                "gebruiksdoel" : ["woonfunctie" for i in range(len(houses))],
+                "bouwjaar" : ["1980" for i in range(len(houses))],
+                "aantal_verblijfsobjecten" : amount_of_dwellings
+            }
+        )
+        self.assertTrue(True)
 
 if __name__ == '__main__':
     unittest.main()

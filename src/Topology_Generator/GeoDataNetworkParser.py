@@ -10,7 +10,7 @@ from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
 from Topology_Generator.NetworkParser import NetworkParser, StationStartingLinesContainer
 from enum import Enum
 
-from Topology_Generator.dataclasses import NavigationLineString
+from Topology_Generator.dataclasses import BuildingInformation, NavigationLineString
 
 class GeneratorCableCase(Enum):
     THIN = 2
@@ -80,7 +80,7 @@ class GeoDataNetworkParser(NetworkParser):
         return np.setdiff1d(new_connections_indices, to_remove)
 
 
-    def get_houses_bordering_line(self, line_string : LineString) -> List[Polygon]:
+    def get_houses_bordering_line(self, line_string : LineString) -> List[BuildingInformation]:
         ret_val = []
         if not self.geo_df_bag_data.empty:
             new_connections = self.lv_line_buildings_mapping[line_string] if line_string in self.lv_line_buildings_mapping else []
@@ -88,7 +88,10 @@ class GeoDataNetworkParser(NetworkParser):
 
             for index in new_connections:
                 building = self.geo_df_bag_data.take([index])
-                ret_val.append(building)
+                ret_val.append(BuildingInformation(building.iloc[0].geometry, 
+                                                   int(building.iloc[0]["bouwjaar"]), 
+                                                   building.iloc[0]["gebruiksdoel"], 
+                                                   int(building.iloc[0]["aantal_verblijfsobjecten"])))
         return ret_val
 
 

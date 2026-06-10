@@ -1,13 +1,12 @@
 import uuid
 import matplotlib.pyplot as plt
-from esdl import EnergySystem, Polygon, esdl
-from networkx import Graph
+from esdl import EnergySystem, esdl
 import numpy as np
 from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.LvNetworkBuilder import LvNetworkBuilder
 from Topology_Generator.NeighbourhoodArchetypeHandler import NeighbourhoodArchetypeHandler
 from Topology_Generator.NetworkPlotter import NetworkPlotter
-from Topology_Generator.dataclasses import LineToHomeInput,NetworkTopologyInfo
+from Topology_Generator.dataclasses import BuildingInformation, LineToHomeInput,NetworkTopologyInfo
 from typing import List
 from shapely import Point, LineString, Polygon, distance, STRtree, dwithin
 from shapely.ops import nearest_points
@@ -29,49 +28,52 @@ class MvEnergySystemBuilder:
             esdl_home = self.generate_esdl_home(coords, archetype, transformer_prefix)
             ret_val.append(esdl_home)
         return ret_val
+    
+    def three_point_collinear(self, p_middle, p_a, p_b):
+        p_middle = np.array(p_middle)
+        p_a = np.array(p_a)
+        p_b = np.array(p_b)
+        line_vec = p_b - p_a
+        if np.allclose(line_vec, 0):
+            return False
+        area2 = np.abs(np.cross(line_vec, p_middle - p_a))
+        base_len = np.linalg.norm(line_vec)
+        dist = area2 / base_len
 
-    def determine_home_type(self, building_year : int, current_house_index : int, neigbourhood_graph : Graph):
-        
-        def three_point_collinear(p_middle, p_a, p_b, tol=0.02, diag_ref=100):
-            # distance from middle to line(a,b)
-            p_middle = np.array(p_middle)
-            p_a = np.array(p_a)
-            p_b = np.array(p_b)
-            line_vec = p_b - p_a
-            if np.allclose(line_vec, 0):
-                return False
-            area2 = np.abs(np.cross(line_vec, p_middle - p_a))
-            base_len = np.linalg.norm(line_vec)
-            dist = area2 / base_len
-            # dynamic threshold: a small absolute value or fraction of reference diag
-            threshold = max(5.0, diag_ref * tol)
-            return dist <= threshold
-        
-        current_house : Polygon = neigbourhood_graph.nodes[current_house_index]["geometry"]
-        neigbours_iterator = neigbourhood_graph.neighbors(current_house_index)
-        neigbours : List[Polygon] = []
-        for neigbour in neigbours_iterator:
-            neigbour_geometry = neigbourhood_graph.nodes[neigbour]["geometry"]
-            neigbours.append(neigbour_geometry)
+        threshold = 5.0
+        return dist <= threshold
 
-        type = ""
-        # aantal_verblijfsobjecten = 5
-        if len(neigbours) == 0: # and aantal_verblijfsobjecten <= 1:
-            type = "vrijstaand"
-        elif len(neigbours) == 1:
-            type = "2-onder-1-kap"
-        elif len(neigbours) >= 2:
-            for i in range(len(neigbours)):
-                for j in range(i, len(neigbours)):
-                    if three_point_collinear(current_house.centroid.coords[0], neigbours[i].centroid.coords[0], neigbours[j].centroid.coords[0]):
-                        type = "rijtjeshuis"
+    def determine_home_type(self, building_info_index : int, network_topology_info : NetworkTopologyInfo):
+        amount_of_dwellings = network_topology_info.buildings[building_info_index].amount_of_dwellings
 
-        # if 1 < aantal_verblijfsobjecten < 5:
-        #     type = "massionette"
-        # elif aantal_verblijfsobjecten >= 5:
-        #     type = "appartement"
+        if 1 < amount_of_dwellings < 5:
+            return "massionette"
+        elif amount_of_dwellings >= 5:
+            return "appartement"
+        else:
+            neigbourhood_graph = network_topology_info.buildings_graph
+            current_house : Polygon = network_topology_info.buildings[building_info_index].building_polygon
+            neigbours_geometries : List[Polygon] = []
+            neigbours_indicies : List[int] = []
+            for neigbour in neigbourhood_graph.neighbors(building_info_index):
+                neigbour_geometry = network_topology_info.buildings[neigbour].building_polygon
+                neigbours_geometries.append(neigbour_geometry)
+                neigbours_indicies.append(neigbour)
 
-        return type
+            if len(neigbours_geometries) == 0: 
+                return "vrijstaand"
+            elif len(neigbours_indicies) == 1 and neigbourhood_graph.degree(neigbours_indicies[0]) == 1:
+                return "2-onder-1-kap"
+            elif len(neigbours_indicies) == 1 and neigbourhood_graph.degree(neigbours_indicies[0]) > 1:
+                return "hoekwoning"
+            elif len(neigbours_geometries) >= 2:
+                for i in range(len(neigbours_geometries)):
+                    for j in range(i, len(neigbours_geometries)):
+                        if self.three_point_collinear(current_house.centroid.coords[0], neigbours_geometries[i].centroid.coords[0], neigbours_geometries[j].centroid.coords[0]):
+                            return "rijtjeshuis" 
+                return "hoekwoning"
+
+        return "unknown"
 
     def generate_esdl_home(self, coords : tuple[float, float], archetype : int, transformer_prefix : str) -> esdl.Building:
         building_point = EsdlHelperFunctions.generate_esdl_point(coords[0], coords[1])
@@ -113,18 +115,20 @@ class MvEnergySystemBuilder:
         ret_val = []
         LOGGER.info(f"Adding lines to homes for network with connections: {network_topology_info.amount_of_connections}")
 
-        for building_entity in network_topology_info.buildings:
-            building = building_entity.geometry.iloc[0]
-            closest_line_index = lv_network_str_tree.nearest(building_entity.geometry)
-            closest_line = lv_network_str_tree.geometries.take(closest_line_index)[0]
-            point_on_building, point_on_line = nearest_points(building, closest_line)
+        for i, building in enumerate(network_topology_info.buildings):
+            closest_line_index = lv_network_str_tree.nearest(building.building_polygon)
+            closest_line = lv_network_str_tree.geometries.take(closest_line_index)
+            point_on_building, point_on_line = nearest_points(building.building_polygon, closest_line)
             new_linestring_to_home = LineString([point_on_line, point_on_building])
-            amount_of_connections = building_entity["aantal_verblijfsobjecten"].iloc[0]
+            amount_of_connections = building.amount_of_dwellings
             if amount_of_connections == 0:
                 amount_of_connections = 1
             archetype = self.archetype_handler.archetype_at_point(point_on_building)
             esdl_buildings = self.generate_esdl_homes(new_linestring_to_home.coords[-1], amount_of_connections, archetype, transformer_prefix)
+            building_type = self.determine_home_type(i, network_topology_info)
             for esdl_building in esdl_buildings:
+                esdl_building.assetType = building_type
+                esdl_building.buildingYear = building.year_of_construction
                 name = f"lv_cable_{transformer_prefix}_to_{esdl_building.name}"
                 length = new_linestring_to_home.length if new_linestring_to_home.length > 0.0 else 1.0
                 cable_to_home = esdl.ElectricityCable(name=name, length=length, id=str(uuid.uuid4()), assetType="lv_line_to_home")

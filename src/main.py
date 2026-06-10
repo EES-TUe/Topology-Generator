@@ -90,7 +90,7 @@ def main():
         mv_network = mv_network_builder.generate_a_mv_network("Oudehaske")
         mv_network_builder.plot_mv_network(mv_network)
 
-    bla = MvEnergySystemBuilder(lv_network_builder, NeighbourhoodArchetypeHandler(pd.read_csv("C:/Users/20180029/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
+    bla = MvEnergySystemBuilder(lv_network_builder, NeighbourhoodArchetypeHandler(pd.read_csv("D:/repos/Topology-Generator/Archetypes/buurten_archetypen.csv")))
     bla.build_mv_energy_system(mv_network)
     # for point in EsdlHelperFunctions.get_all_esdl_objects_from_type(mv_network.eAllContents(), esdl.Point):
     #     wsg84_lat, wsg_84_long = EsdlHelperFunctions.convert_epsg_28992_to_wgs84(point.lat, point.lon)
