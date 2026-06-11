@@ -180,7 +180,7 @@ class MvEnergySystemBuilder:
         pass
 
 
-    def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, start_joint : esdl.Joint, transformer_prefix : str) -> esdl.EnergySystem:
+    def generate_lv_esdl(self, network_topology_info : NetworkTopologyInfo, start_joint : esdl.Joint, transformer_prefix : str) -> List[esdl.EnergyAsset]:
         r_tree_lines = STRtree([navigation_line_string.line_string for navigation_line_string in network_topology_info.network_lines])
 
         lines_to_home_inputs = self.generate_lines_connected_to_homes(transformer_prefix, r_tree_lines, network_topology_info)
