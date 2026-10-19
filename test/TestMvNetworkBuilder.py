@@ -9,7 +9,7 @@ from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
 
-class TestLvNetworkBuilder(unittest.TestCase):
+class TestMvNetworkBuilder(unittest.TestCase):
 
     def setUp(self):
         self.df_hv_mv_station = geopandas.GeoDataFrame(
@@ -80,8 +80,8 @@ class TestLvNetworkBuilder(unittest.TestCase):
 
         expected_cable_types = ["GPLK-Cu-70", "GPLK-Al-150", "XLPE-Al-150"]
         self.assertTrue(all(cable.assetType in expected_cable_types for cable in electricity_cables))
-        self.assertTrue(len([cable.assetType == "GPLK-Al-150" for cable in electricity_cables]), 3)
-        self.assertTrue(len([cable.assetType == "XLPE-Al-150" for cable in electricity_cables]), 3)
+        self.assertEqual(sum(cable.assetType == "GPLK-Al-150" for cable in electricity_cables), 2)
+        self.assertEqual(sum(cable.assetType == "XLPE-Al-150" for cable in electricity_cables), 4)
 
         hv_transformer = next(transformer for transformer in transformers if transformer.name == "HighVoltageTrafo")
         self.assertEqual((hv_transformer.voltagePrimary, hv_transformer.voltageSecundary), (50.0, 10.0))
