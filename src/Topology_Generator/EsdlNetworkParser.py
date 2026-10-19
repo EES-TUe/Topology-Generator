@@ -60,7 +60,7 @@ class EsdlNetworkParser(NetworkParser):
     
     def get_transformer_connected_to_line_string(self, navigation_line_string : NavigationLineString) -> esdl.Transformer:
         coords = navigation_line_string.line_string.coords[-1] if navigation_line_string.first_point_end else navigation_line_string.line_string.coords[0]
-        return next(transformer for transformer in self.transformers if dwithin(Point(transformer.geometry.lat, transformer.geometry.lon), Point(coords), self.transformer_touch_margin))
+        return next(transformer for transformer in self.transformers if dwithin(Point(EsdlHelperFunctions.rd_coords_from_esdl_point(transformer.geometry)), Point(coords), self.transformer_touch_margin))
     
     def get_esdl_connected_assets_from_line_string(self, line_strings : List[LineString]) -> List[esdl.ConnectableAsset]:
         ret_val = []
@@ -108,18 +108,18 @@ class EsdlNetworkParser(NetworkParser):
 
     def _init_transformer_mapping(self) -> List[StationStartingLinesContainer]:
         for transformer in self.transformers:
-            transformer_location = Point(transformer.geometry.lat, transformer.geometry.lon)
+            transformer_location = Point(EsdlHelperFunctions.rd_coords_from_esdl_point(transformer.geometry))
             lv_lines_indices = self.str_tree_lv_lines.query(transformer_location, 'touches')
             lines_intersecting_with_station = []
             for index in lv_lines_indices:
                 lv_line = self.str_tree_lv_lines.geometries.take(index)
-                point_touches_mv_station = GeometryHelperFunctions.points_are_close(lv_line.coords[0], (transformer.geometry.lat, transformer.geometry.lon)) 
+                point_touches_mv_station = GeometryHelperFunctions.points_are_close(lv_line.coords[0], EsdlHelperFunctions.rd_coords_from_esdl_point(transformer.geometry)) 
                 lines_intersecting_with_station.append(NavigationLineString(lv_line, not point_touches_mv_station, index))
             self.lines_connected_to_transformer_mapping[transformer] = StationStartingLinesContainer(lines_intersecting_with_station, 1)
     
     def extract_lv_lines_connected_to_mv_lv_station_at_point(self, point : Point) -> List[NavigationLineString]:
         for transformer in self.transformers:
-            transformer_location = Point(transformer.geometry.lat, transformer.geometry.lon)
+            transformer_location = Point(EsdlHelperFunctions.rd_coords_from_esdl_point(transformer.geometry))
             if dwithin(transformer_location, point, self.transformer_touch_margin):
                 return self.lines_connected_to_transformer_mapping[transformer].starting_lines
         return []
@@ -133,7 +133,7 @@ class EsdlNetworkParser(NetworkParser):
             if cable not in self.lines_to_homes:
                 for geo_property in cable.geometry.eAllContents():
                     if isinstance(geo_property, esdl.Point):
-                        new_point = (geo_property.lat, geo_property.lon)
+                        new_point = EsdlHelperFunctions.rd_coords_from_esdl_point(geo_property)
                         points.append(new_point)
                 new_line_string = LineString(points)
                 if new_line_string not in ret_val:

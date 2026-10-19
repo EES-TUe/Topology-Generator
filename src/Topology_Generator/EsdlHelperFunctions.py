@@ -2,6 +2,8 @@ import uuid
 from esdl import esdl
 from typing import List
 
+from Topology_Generator.GeometryHelperFunctions import GeometryHelperFunctions
+
 class EsdlHelperFunctions:
 
     @staticmethod
@@ -27,9 +29,18 @@ class EsdlHelperFunctions:
             area.asset.append(esdl_obj)
 
     @staticmethod
-    def generate_esdl_joint(lat : float, long : float, name : str) -> esdl.Joint:
+    def esdl_point_from_rd(x : float, y : float) -> esdl.Point:
+        lat, lon = GeometryHelperFunctions.rd_to_wgs84(x, y)
+        return esdl.Point(lat=lat, lon=lon, CRS="WGS84")
+
+    @staticmethod
+    def rd_coords_from_esdl_point(point : esdl.Point) -> tuple[float, float]:
+        return GeometryHelperFunctions.wgs84_to_rd(point.lat, point.lon)
+
+    @staticmethod
+    def generate_esdl_joint(x : float, y : float, name : str) -> esdl.Joint:
         joint = esdl.Joint(id=str(uuid.uuid4()), name=name)
-        joint.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        joint.geometry = EsdlHelperFunctions.esdl_point_from_rd(x, y)
         joint.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         joint.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return joint

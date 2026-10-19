@@ -87,7 +87,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         for line in self.mv_lines:
             esdl_line = esdl.Line()
             for p in line.coords:
-                esdl_line.point.append(esdl.Point(lat=p[0], lon=p[1], CRS="WGS84"))
+                esdl_line.point.append(EsdlHelperFunctions.esdl_point_from_rd(p[0], p[1]))
             expected_esdl_lines.append(esdl_line)
 
         self.assertTrue(all(self.esdl_cable_in_collection(cable.geometry, expected_esdl_lines) for cable in electricity_cables))

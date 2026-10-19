@@ -3,6 +3,7 @@ from typing import List
 from shapely import Polygon, Point, intersects, LineString, STRtree, covers
 
 import numpy as np
+from pyproj import Transformer
 
 from Topology_Generator.dataclasses import NavigationLineString
 
@@ -10,11 +11,23 @@ OVERLAP_SQUARE_SIZE = 0.05
 OVERLAP_SQUARE_CENTROID_DISTANCE = OVERLAP_SQUARE_SIZE / 2
 CLOSE_MARGIN = 0.02
 
+RD_TO_WGS84 = Transformer.from_crs("EPSG:28992", "EPSG:4326", always_xy=True)
+WGS84_TO_RD = Transformer.from_crs("EPSG:4326", "EPSG:28992", always_xy=True)
+
 class GeometryHelperFunctions:
     
     @staticmethod
     def points_are_close(point_a, point_b, margin = CLOSE_MARGIN ): 
         return point_a[0] - margin <= point_b[0] <= point_a[0] + margin and point_a[1] - margin <= point_b[1] <= point_a[1] + margin
+
+    @staticmethod
+    def rd_to_wgs84(x : float, y : float) -> tuple[float, float]:
+        lon, lat = RD_TO_WGS84.transform(x, y)
+        return lat, lon
+
+    @staticmethod
+    def wgs84_to_rd(lat : float, lon : float) -> tuple[float, float]:
+        return WGS84_TO_RD.transform(lon, lat)
 
     @staticmethod
     def points_to_polygon(points) -> Polygon:

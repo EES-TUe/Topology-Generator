@@ -50,9 +50,9 @@ class MvNetworkBuilder:
         existing_line = next((new_navigation_line for new_navigation_line in next_navigation_line_strings if new_navigation_line.index == navigation_line.index), None)
         return existing_line
     
-    def _generate_new_transformer(self, lat : float, long : float, name : str, commissioning_date : datetime = datetime.min):
+    def _generate_new_transformer(self, x : float, y : float, name : str, commissioning_date : datetime = datetime.min):
         transformer = esdl.Transformer(id=str(uuid.uuid4()), name=name, assetType="testtrafotype", voltagePrimary=50.0, voltageSecundary=10.0, commissioningDate=commissioning_date)
-        transformer.geometry = esdl.Point(lat=lat, lon=long, CRS="WGS84")
+        transformer.geometry = EsdlHelperFunctions.esdl_point_from_rd(x, y)
         transformer.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         transformer.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
         return transformer
@@ -61,7 +61,7 @@ class MvNetworkBuilder:
         cable = esdl.ElectricityCable(id=str(uuid.uuid4()), length=navigation_line_string.line_string.length, name=f"Cable{navigation_line_string.index}", assetType="testtype")
         esdl_line = esdl.Line()
         for p in navigation_line_string.line_string.coords:
-            esdl_line.point.append(esdl.Point(lat=p[0], lon=p[1], CRS="WGS84"))
+            esdl_line.point.append(EsdlHelperFunctions.esdl_point_from_rd(p[0], p[1]))
         cable.geometry = esdl_line
         cable.port.append(esdl.InPort(id=str(uuid.uuid4()), name="In"))
         cable.port.append(esdl.OutPort(id=str(uuid.uuid4()), name="Out"))
@@ -90,7 +90,7 @@ class MvNetworkBuilder:
         try:
             last_trafo_with_building_year = next(esdl_obj for esdl_obj in reversed(esdl_objs) if (isinstance(esdl_obj, esdl.Transformer) or isinstance(esdl_obj, esdl.Joint)) and esdl_obj.commissioningDate != None and esdl_obj.commissioningDate != datetime.min)
         except StopIteration:
-            raise ValueError(f"No building year found! ({esdl_objs[-1].geometry.lon}, {esdl_objs[-1].geometry.lat})")
+            raise ValueError(f"No building year found! {EsdlHelperFunctions.rd_coords_from_esdl_point(esdl_objs[-1].geometry)}")
         return last_trafo_with_building_year
     
     def _update_cable_types(self, year : int, esdl_objs : List[esdl.ConnectableAsset]):
@@ -108,24 +108,20 @@ class MvNetworkBuilder:
                 break
 
     def _add_esdl_node_and_joint(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
-        coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
-        lat = coords[0]
-        long = coords[1]
-        to_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
+        x, y = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+        to_node = EsdlHelperFunctions.generate_esdl_joint(x, y, f"joint{from_node.number}")
         return self._add_esdl_node_and_edge(navigation_line_string, from_node, to_node, esdl_objs)
 
     def _add_esdl_node_and_transformer(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
-        coords = GeometryHelperFunctions.get_end_coords(navigation_line_string)
-        lat = coords[0]
-        long = coords[1]
-        building_year = self.parser.get_building_year_of_transformer_house_at_point(Point(lat, long))
-        to_transformer = self._generate_new_transformer(lat, long, f"transformer{from_node.number}")
-        to_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
+        x, y = GeometryHelperFunctions.get_end_coords(navigation_line_string)
+        building_year = self.parser.get_building_year_of_transformer_house_at_point(Point(x, y))
+        to_transformer = self._generate_new_transformer(x, y, f"transformer{from_node.number}")
+        to_node = EsdlHelperFunctions.generate_esdl_joint(x, y, f"joint{from_node.number}")
         to_transformer.port[0].connectedTo.append(to_node.port[1])
         to_node.port[1].connectedTo.append(to_transformer.port[0])
         from_node = self._add_esdl_node_and_edge(navigation_line_string, from_node, to_node, esdl_objs)
         from_node.number += 1
-        lv_transformer_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
+        lv_transformer_node = EsdlHelperFunctions.generate_esdl_joint(x, y, f"joint{from_node.number}")
         lv_transformer_node.port[0].connectedTo.append(to_transformer.port[1])
         esdl_objs.append(lv_transformer_node)
         esdl_objs.append(to_transformer)
