@@ -27,5 +27,5 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://github.com/EES-TUe/Topology-Generator"
+Issues = "https://github.com/EES-TUe/Topology-Generator/issues"
