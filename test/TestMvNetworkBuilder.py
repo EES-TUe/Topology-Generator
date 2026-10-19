@@ -83,6 +83,10 @@ class TestLvNetworkBuilder(unittest.TestCase):
         self.assertTrue(len([cable.assetType == "GPLK-Al-150" for cable in electricity_cables]), 3)
         self.assertTrue(len([cable.assetType == "XLPE-Al-150" for cable in electricity_cables]), 3)
 
+        hv_transformer = next(transformer for transformer in transformers if transformer.name == "HighVoltageTrafo")
+        self.assertEqual((hv_transformer.voltagePrimary, hv_transformer.voltageSecundary), (50.0, 10.0))
+        self.assertTrue(all((transformer.voltagePrimary, transformer.voltageSecundary) == (10.0, 0.4) for transformer in transformers if transformer is not hv_transformer))
+
         expected_esdl_lines = []
         for line in self.mv_lines:
             esdl_line = esdl.Line()
