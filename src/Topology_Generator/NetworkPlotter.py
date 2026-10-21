@@ -50,20 +50,24 @@ class NetworkPlotter:
                 plt.xticks([])
                 plt.yticks([])
 
-    def plot_shapes(self, color, shapes):
+    def plot_shapes(self, color : str, shapes : List[Polygon]):
         for shape in shapes:
-            plt.plot(*shape.xy, color=color)
+            plt.plot(*shape.boundary.xy, color=color)
 
     def plot_mv_network_with_lv_network(self, mv_network_lines : List[LineString], lv_network_lines : List[LineString], mv_network_color : str = "blue", lv_network_color : str = "red"):
         self._add_subplot()
-        self.plot_lines(mv_network_color, mv_network_lines, False, True)
         self.plot_lines(lv_network_color, lv_network_lines, False, True)
+        self.plot_lines(mv_network_color, mv_network_lines, False, True)
 
     def plot_network(self, lv_network_lines : List[LineString], mv_lv_station : Polygon = None, with_line_numbers = False, without_axis_numbers = False, network_color : str = 'blue'):
         self._add_subplot()
         self.plot_lines(network_color, lv_network_lines, with_line_numbers, without_axis_numbers)
         if mv_lv_station != None:
             self.plot_shapes('green', [mv_lv_station])
+
+    def plot_network_with_buildings(self, lv_network_lines : List[LineString], buildings : List[Polygon] = [], with_line_numbers = False, without_axis_numbers = False, network_color : str = 'blue'):
+        self.plot_network(lv_network_lines, with_line_numbers=with_line_numbers, without_axis_numbers=without_axis_numbers, network_color=network_color)
+        self.plot_shapes('green', buildings)
 
     def plot_network_topology(self, topology : nx.Graph):
         self._add_subplot()
