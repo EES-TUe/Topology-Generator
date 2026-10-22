@@ -102,7 +102,7 @@ class GeoDataNetworkParser(NetworkParser):
         return 1
 
     def get_building_year_of_transformer_house_at_point(self, point : Point) -> int:
-        mv_station_indices = self.geo_df_lv_mv_station.sindex.query(point, predicate="dwithin", distance=3.0)
+        mv_station_indices = self.geo_df_lv_mv_station.sindex.query(point, predicate="dwithin", distance=GeoDataMargins.MV_CABLES_TO_MV_LV_STATION_MARGIN)
         if len(mv_station_indices) > 0:
             mv_station_point = self.geo_df_lv_mv_station.take([mv_station_indices[0]]).geometry
             return self.get_building_year_of_building_at_point(Point(mv_station_point.x, mv_station_point.y))
