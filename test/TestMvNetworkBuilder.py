@@ -9,7 +9,7 @@ from Topology_Generator.EsdlHelperFunctions import EsdlHelperFunctions
 from Topology_Generator.GeoDataNetworkParser import GeneratorCableCase
 from Topology_Generator.MvNetworkBuilder import MvNetworkBuilder
 
-class TestLvNetworkBuilder(unittest.TestCase):
+class TestMvNetworkBuilder(unittest.TestCase):
 
     def setUp(self):
         self.df_hv_mv_station = geopandas.GeoDataFrame(
@@ -22,7 +22,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
         self.df_bag_data = geopandas.GeoDataFrame(
             {
                 "id": [1,2],
-                "geometry": [Polygon([(0, 0), (2, 0), (2, 2), (2, 0)]), Polygon([(38, 29), (40, 29), (40, 31), (38, 31)])],
+                "geometry": [Polygon([(0, 0), (2, 0), (2, 2), (2, 0)]), Polygon([(380, 290), (400, 290), (400, 310), (380, 310)])],
                 "bouwjaar" : [2003, 1984],
                 "gebruiksdoel" : ["woonfunctie", "woonfunctie"]
             }
@@ -82,8 +82,8 @@ class TestLvNetworkBuilder(unittest.TestCase):
 
         expected_cable_types = ["GPLK_Cu_70", "GPLK_Al_150", "XLPE_Al_150"]
         self.assertTrue(all(cable.assetType in expected_cable_types for cable in electricity_cables))
-        self.assertTrue(len([cable.assetType == "GPLK_Al_150" for cable in electricity_cables]), 3)
-        self.assertTrue(len([cable.assetType == "XLPE_Al_150" for cable in electricity_cables]), 3)
+        self.assertEqual(sum(cable.assetType == "GPLK_Al_150" for cable in electricity_cables), 2)
+        self.assertEqual(sum(cable.assetType == "XLPE_Al_150" for cable in electricity_cables), 4)
 
         expected_esdl_lines = []
         for line in self.mv_lines:
@@ -130,6 +130,7 @@ class TestLvNetworkBuilder(unittest.TestCase):
 
         self.assertEqual(len(electricity_cables), 4)
         self.assertEqual(len(transformers), 2)
+        self.assertTrue(all(cable.assetType != None for cable in electricity_cables))
 
     def test_given_mv_cables_not_connected_when_mv_station_is_present_then_new_trafo_is_added(self):
         # Arrange
