@@ -105,6 +105,40 @@ class MvNetworkBuilder:
         to_node = EsdlHelperFunctions.generate_esdl_joint(lat, long, f"joint{from_node.number}")
         return self._add_esdl_node_and_edge(navigation_line_string, from_node, to_node, esdl_objs)
 
+    def _add_esdl_node_and_junction(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
+        last_trafo_with_building_year = self._find_last_trafo_with_building_year(esdl_objs)
+        from_node = self._add_esdl_joint_and_cable(navigation_line_string, from_node, esdl_objs)
+        from_node.esdl_obj.eSet("commissioningDate", last_trafo_with_building_year.commissioningDate)
+        self._update_cable_types(last_trafo_with_building_year.commissioningDate.year, esdl_objs)
+        return from_node
+
+    def _disconnect_ports_added_since(self, asset : esdl.ConnectableAsset, connections_before):
+        for port, connected_before in zip(asset.port, connections_before):
+            for connected_port in [p for p in port.connectedTo if p not in connected_before]:
+                port.connectedTo.remove(connected_port)
+
+    def _build_branches_at_junction(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, ret_val : List[esdl.ConnectableAsset], next_navigation_line_strings : List[NavigationLineString], visited_lines : set, loops_mapping):
+        coords = navigation_line_string.end_point
+        junction_at_end_of_line = loops_mapping.get(coords, None)
+        if junction_at_end_of_line != None:
+            self._add_loop_back_cable(navigation_line_string, from_node, ret_val, junction_at_end_of_line)
+            return
+
+        from_node = self._add_esdl_node_and_junction(navigation_line_string, from_node, ret_val)
+        loops_mapping[coords] = from_node.esdl_obj
+        ret_val_len_old = len(ret_val)
+        for next_navigation_line_string in next_navigation_line_strings:
+            LOGGER.debug(f"Diving deeper in recursion at junction {coords}")
+            connections_before = [list(port.connectedTo) for port in from_node.esdl_obj.port]
+            new_assets = self._build_mv_network_recursive(next_navigation_line_string, from_node, visited_lines, loops_mapping)
+            if len(new_assets) == 0:
+                # Case the branch is a dead end so its cables are left out, remove their connections to the junction
+                self._disconnect_ports_added_since(from_node.esdl_obj, connections_before)
+            ret_val.extend(new_assets[1:])
+        if ret_val_len_old == len(ret_val):
+            ret_val.clear()
+            del loops_mapping[coords]
+
     def _add_esdl_node_and_transformer(self, navigation_line_string : NavigationLineString, from_node : EsdlAssetWithMetaData, esdl_objs : List[esdl.ConnectableAsset]):
         coords = navigation_line_string.end_point
         lat = coords[0]
@@ -165,7 +199,11 @@ class MvNetworkBuilder:
                         ret_val_len_old = len(ret_val)
                         for next_navigation_line_string in next_navigation_line_strings_connected_to_station:
                             LOGGER.debug(f"Diving deeper in recursion at point {coords}")
+                            connections_before = [list(port.connectedTo) for port in from_node.esdl_obj.port]
                             new_assets = self._build_mv_network_recursive(next_navigation_line_string, from_node, visited_lines, loops_mapping)
+                            if len(new_assets) == 0:
+                                # Case the branch is a dead end so its cables are left out, remove their connections to the station
+                                self._disconnect_ports_added_since(from_node.esdl_obj, connections_before)
                             ret_val.extend(new_assets[1:])
                         if ret_val_len_old == len(ret_val):
                             # Case we have only found dead ends so we do not have a medium voltage ring
@@ -173,6 +211,11 @@ class MvNetworkBuilder:
                             ret_val.clear()
                             cleared = True
 
+                    next_navigation_line_strings.clear()
+                    next_navigation_line_strings_connected_to_station.clear()
+                    cleared = True
+                elif len(next_navigation_line_strings) > 1 or (len(next_navigation_line_strings) == 1 and coords in loops_mapping):
+                    self._build_branches_at_junction(navigation_line_string, from_node, ret_val, next_navigation_line_strings, visited_lines, loops_mapping)
                     next_navigation_line_strings.clear()
                     next_navigation_line_strings_connected_to_station.clear()
                     cleared = True
@@ -189,6 +232,8 @@ class MvNetworkBuilder:
                     navigation_line_string = next_navigation_line_strings_connected_to_station[0]
                     visited_lines.add(navigation_line_string.index)
                     next_navigation_line_strings, next_navigation_line_strings_connected_to_station = self._define_next_lines(navigation_line_string, visited_lines)
+                else:
+                    raise RuntimeError(f"Unhandled cable configuration at {coords}")
 
             coords = navigation_line_string.end_point
             if len(next_navigation_line_strings) + len(next_navigation_line_strings_connected_to_station) == 0 and coords in loops_mapping and not cleared:
