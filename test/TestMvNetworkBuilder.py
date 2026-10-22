@@ -130,6 +130,7 @@ class TestMvNetworkBuilder(unittest.TestCase):
 
         self.assertEqual(len(electricity_cables), 4)
         self.assertEqual(len(transformers), 2)
+        self.assertTrue(all(cable.assetType != None for cable in electricity_cables))
 
     def test_given_mv_cables_not_connected_when_mv_station_is_present_then_new_trafo_is_added(self):
         # Arrange
